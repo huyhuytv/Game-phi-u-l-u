@@ -384,7 +384,7 @@ Lời kể phải khiến người đọc tin rằng đây là do chính ngườ
                 ? `*   **ƯU TIÊN TUYỆT ĐỐI VỀ THỂ CHẤT:** Người chơi đã cung cấp Thể Chất Đặc Biệt là "${characterData.theChat.name}". Bạn PHẢI sử dụng chính xác giá trị này trong thuộc tính \`specialPhysique\`.`
                 : `*   **Thể Chất Đặc Biệt (\`specialPhysique\`):** Nếu người chơi không cung cấp, hãy tự quyết định một Thể Chất hợp lý (thường là "Phàm Thể" hoặc "Bình Thường Phàm Thể" cho khởi đầu bình thường).`;
             
-            const talentNameForPrompt = characterData.talent.name.trim() ? characterData.talent.name : "Không có";
+            const talentNameForPrompt = characterData.talent?.name?.trim() ? characterData.talent.name : "Không có";
             const tuChatRule = `*   **Tư Chất (\`tuChat\`):** Dựa trên **Linh Căn (\`spiritualRoot\`)**, **Thiên Phú ("${talentNameForPrompt}")** và **Thể Chất Đặc Biệt (\`specialPhysique\`)** đã quyết định, hãy tổng hợp và đánh giá một Tư Chất hợp lý (ví dụ: "Hạ Đẳng", "Thượng Đẳng", "Tiên Phẩm",...). Đây là thuộc tính do AI toàn quyền quyết định, không phải người chơi nhập.`;
 
             playerStatsInitRule = `

@@ -1,6 +1,6 @@
 import type { CharacterCreationData, WorldData } from "../types";
 import { Type } from "@google/genai";
-import { DEFAULT_CULTIVATION_REALMS, defaultCultivationSystemDetails } from "./definitions";
+import { DEFAULT_CULTIVATION_REALMS, defaultCultivationSystemDetails, PASTE_PROMPT_INSTRUCTION } from "./definitions";
 
 export const createWorldGenerationPrompt = (
     storyIdea: string, 
@@ -28,12 +28,8 @@ Nhiệm vụ hàng đầu của bạn là TÔN TRỌNG và XÂY DỰNG dựa tr�
 
     let characterDataInstruction = characterFields.map(field => {
         const value = characterData[field.key] as string;
-
-        if (field.key === 'objective') {
-            return `- **${field.label}:** (Trong chế độ sáng tạo này, bạn **BẮT BUỘC PHẢI SÁNG TẠO** một mục tiêu mới phù hợp với bối cảnh bạn tạo ra, phớt lờ mục tiêu mặc định. Trả về bằng tag [GENERATED_PLAYER_GOAL: text="..."]).`;
-        }
         
-        if (value && value.trim()) {
+        if (value && value.trim() && (field.key !== 'gender' || value !== 'Bí Mật')) {
             return `- **${field.label}:** "${value}" (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).`;
         } else {
             const exampleAttr = field.isTagValueText ? 'text="..."' : `${field.key.toLowerCase()}="..."`;
@@ -59,7 +55,32 @@ Nhiệm vụ hàng đầu của bạn là TÔN TRỌNG và XÂY DỰNG dựa tr�
     }
 
     // --- 3. Dynamic World Data Block ---
+    let aiStyleInput = 'Mặc định của GM';
+    if (worldData.aiStyle.content) {
+        const styleType = worldData.aiStyle.type;
+        const styleContent = worldData.aiStyle.content;
+        let prefix = '';
+        let contentBlock = `\n"""\n${styleContent}\n"""`;
+
+        if (styleType === 'default') {
+            prefix = 'Hãy tuân thủ các quy tắc văn phong bổ sung sau:';
+        } else if (styleType === 'upload') {
+            prefix = 'Mô phỏng theo văn bản đã được tải lên:';
+        } else if (styleType === 'paste') {
+            prefix = PASTE_PROMPT_INSTRUCTION;
+            contentBlock = `\n\nVăn bản mẫu:\n"""\n${styleContent}\n"""`;
+        } else {
+            prefix = 'Mô phỏng theo văn bản sau:'; // Fallback
+        }
+        aiStyleInput = `${prefix}${contentBlock}`;
+    }
+
     let worldDataInstruction = '';
+     if (worldData.storyName?.trim()) {
+        worldDataInstruction += `- **Tên Câu Chuyện:** "${worldData.storyName}" (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).\n`;
+    } else {
+        worldDataInstruction += `- **Tên Câu Chuyện:** (Người chơi bỏ trống, **HÃY SÁNG TẠO** và trả về bằng tag [GENERATED_STORY_NAME: text="..."]).\n`;
+    }
     if (worldData.theme?.trim()) {
         worldDataInstruction += `- **Chủ Đề Thế Giới:** "${worldData.theme}" (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).\n`;
     } else {
@@ -70,7 +91,9 @@ Nhiệm vụ hàng đầu của bạn là TÔN TRỌNG và XÂY DỰNG dựa tr�
     } else {
         worldDataInstruction += `- **Bối Cảnh Chi Tiết:** (Người chơi bỏ trống, **HÃY SÁNG TẠO** và trả về bằng tag [GENERATED_WORLD_SETTING_DESCRIPTION: text="..."]).\n`;
     }
-     worldDataInstruction += `- **Tên Tiền Tệ:** "${worldData.currencyName}" (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).\n`;
+     worldDataInstruction += `- **Văn phong AI mong muốn:** ${aiStyleInput}\n`;
+     const currencyInstruction = `- **Tên Tiền Tệ:** "${worldData.currencyName}" (Giá trị hiện tại). Dựa trên thể loại "${worldData.genre}", hãy quyết định một tên tiền tệ phù hợp. Nếu giá trị hiện tại không phù hợp (ví dụ: "Linh Thạch" cho thể loại "Đô Thị"), hãy tạo một cái tên mới. Nếu phù hợp, hãy giữ nguyên. **BẮT BUỘC** trả về kết quả cuối cùng bằng tag [GENERATED_CURRENCY_NAME: name="..."]`;
+     worldDataInstruction += currencyInstruction + '\n';
      worldDataInstruction += `- **Số Tiền Khởi Đầu:** ${worldData.startingCurrency} (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).\n`;
      worldDataInstruction += `- **Ngày Bắt Đầu:** Ngày ${worldData.startingDate.day}, Tháng ${worldData.startingDate.month}, Năm ${worldData.startingDate.year} (Người chơi đã cung cấp, **PHẢI SỬ DỤNG**).\n`;
      if (worldData.startingRealm?.trim()) {
@@ -164,7 +187,8 @@ Xác nhận hệ thống này bằng tag sau:
 
     *   Tạo ra 9 đến 10 NPC Khởi Đầu quan trọng hoặc thú vị.
         **LƯU Ý QUAN TRỌNG VỀ VẬN MỆNH NPC:** Mỗi NPC chỉ được có **MỘT** trong hai: **Thiên Phú** (\`talent\`) hoặc **Thể Chất Đặc Biệt** (\`specialPhysique\`). Hãy đa dạng hóa lựa chọn này giữa các NPC (ví dụ: NPC này có Thiên Phú, NPC kia có Thể Chất).
-        [GENERATED_NPC: name="Tên NPC (BẮT BUỘC)", gender="Nam/Nữ/Khác/Không rõ (BẮT BUỘC)", race="Chủng tộc (BẮT BUỘC, ví dụ: Nhân Tộc, Yêu Tộc, Ma Tộc)", personality="Tính cách nổi bật (BẮT BUỘC)", initialAffinity=0 (SỐ NGUYÊN từ -100 đến 100), details="Vai trò, tiểu sử ngắn hoặc mối liên hệ với người chơi (BẮT BUỘC), phù hợp với thể loại '${worldData.genre}'", realm="Cảnh giới NPC (BẮT BUỘC nếu có tu luyện). Hãy tạo ra sự đa dạng về cảnh giới. Ví dụ: một số NPC có thể là người thường không tu luyện (dùng cảnh giới 'Phàm Nhân Nhất Trọng'), một số là tu sĩ cấp thấp ('Luyện Khí Tam Trọng'), và một số khác là các cao thủ ('Kim Đan Kỳ'). Cảnh giới PHẢI là một cấp độ hợp lệ từ Hệ Thống Cảnh Giới đã tạo ở trên." tuChat="CHỌN MỘT TRONG: Phế Phẩm | Hạ Đẳng | Trung Đẳng | Thượng Đẳng | Cực Phẩm | Tiên Phẩm | Thần Phẩm" (BẮT BUỘC nếu có tu luyện. Tư chất quyết định tốc độ tu luyện của NPC)" spiritualRoot="Linh căn của NPC (BẮT BUỘC, nếu không có thì ghi là 'Không có')", talent="Thiên phú của NPC (CHỈ ĐIỀN NẾU KHÔNG CÓ Thể Chất, nếu không có ghi 'Không có')", specialPhysique="Thể chất của NPC (CHỈ ĐIỀN NẾU KHÔNG CÓ Thiên Phú, nếu không có ghi 'Không có')", thoNguyen=X, maxThoNguyen=Y (BẮT BUỘC. Áp dụng **HƯỚNG DẪN VỀ THỌ NGUYÊN** đã cung cấp để tính toán.), relationshipToPlayer="Mối quan hệ (ví dụ: 'Mẹ Con', 'Sư phụ', 'Bằng hữu', 'Chủ nhân - nô lệ', 'Vợ chồng', 'Đạo lữ', 'Đối thủ', 'Bạn thời thơ ấu', 'Người bảo hộ', 'Chủ nợ'...)" (BẮT BUỘC nhưng khi npc và người chơi không có quan hệ gì thì để là 'Người xa lạ')].
+        [GENERATED_NPC: name="Tên NPC (BẮT BUỘC)", gender="Nam/Nữ/Khác/Không rõ (BẮT BUỘC)", race="Chủng tộc (BẮT BUỘC, ví dụ: Nhân Tộc, Yêu Tộc, Ma Tộc)", personality="Tính cách nổi bật (BẮT BUỘC)", initialAffinity=0 (SỐ NGUYÊN từ -100 đến 100), details="Vai trò, tiểu sử ngắn hoặc mối liên hệ với người chơi (BẮT BUỘC), phù hợp với thể loại '${worldData.genre}'", realm="Cảnh giới NPC. BẮT BUỘC. PHẢI là một cấp độ hợp lệ từ Hệ Thống Cảnh Giới đã tạo. Đối với người không tu luyện, BẮT BUỘC dùng 'Phàm Nhân Nhất Trọng'. TUYỆT ĐỐI KHÔNG dùng 'Người Thường'. Hãy tạo sự đa dạng, ví dụ: 'Phàm Nhân Nhất Trọng', 'Luyện Khí Tam Trọng', 'Kim Đan Kỳ'.", tuChat="CHỌN MỘT TRONG: Phế Phẩm | Hạ Đẳng | Trung Đẳng | Thượng Đẳng | Cực Phẩm | Tiên Phẩm | Thần Phẩm" (BẮT BUỘC nếu có tu luyện. Tư chất quyết định tốc độ tu luyện của NPC)" spiritualRoot="Linh căn của NPC (BẮT BUỘC, nếu không có thì ghi là 'Không có')", talent="Thiên phú của NPC (CHỈ ĐIỀN NẾU KHÔNG CÓ Thể Chất, nếu không có ghi 'Không có')", specialPhysique="Thể chất của NPC (CHỈ ĐIỀN NẾU KHÔNG CÓ Thiên Phú, nếu không có ghi 'Không có')", thoNguyen=X, maxThoNguyen=Y (BẮT BUỘC. Áp dụng **HƯỚN DẪN VỀ THỌ NGUYÊN** đã cung cấp để tính toán.), relationshipToPlayer="Mối quan hệ (ví dụ: 'Mẹ Con', 'Sư phụ', 'Bằng hữu', 'Chủ nhân - nô lệ', 'Vợ chồng', 'Đạo lữ', 'Đối thủ', 'Bạn thời thơ ấu', 'Người bảo hộ', 'Chủ nợ'...)" (BẮT BUỘC nhưng khi npc và người chơi không có quan hệ gì thì để là 'Người xa lạ')].
+        **LOGIC KIỂM TRA (CỰC KỲ QUAN TRỌNG):** Vai trò của NPC (trong thuộc tính 'details') phải tương xứng với cảnh giới ('realm'). Ví dụ: một Trưởng môn phái tu tiên không thể ở cảnh giới Phàm Nhân. Một người bán hàng rong không nên có cảnh giới Kim Đan.
     *   Tạo ra 9 đến 10 Yêu Thú Khởi Đầu (quái vật, thú dữ) phù hợp với bối cảnh.
         [GENERATED_YEUTHU: name="Tên Yêu Thú (BẮT BUỘC)", species="Loài (ví dụ: Hỏa Lang, Băng Giao Long)", description="Mô tả về ngoại hình, tập tính (BẮT BUỘC)", realm="Cảnh giới Yêu Thú (BẮT BUỘC nếu có tu luyện)", isHostile=true (true/false)]
     *   Tạo ra 9 đến 10 Tri Thức Thế Giới Khởi Đầu để làm phong phú bối cảnh.
@@ -206,7 +230,7 @@ ${worldSettingsInstruction}
 **HƯỚNG DẪN CHI TIẾT:**
 ${cultivationSystemInstruction}
 
-**HƯỚNG DẪN VỀ THỌ NGUYÊN (TUỔI THỌ):**
+**HƯỚN DẪN VỀ THỌ NGUYÊN (TUỔI THỌ):**
 Tuổi thọ tối đa (\`maxThoNguyen\`) tăng mạnh theo từng đại cảnh giới. Đây là quy tắc BẮT BUỘC bạn phải tuân theo khi tạo người chơi và NPC.
 *   **Công thức tính (Nếu có hệ thống cảnh giới):**
     1.  **Thọ nguyên gốc (Phàm Nhân/Cấp 0):** 120 năm.
@@ -227,7 +251,7 @@ Bây giờ, hãy hoàn thành nhiệm vụ của bạn. Tạo ra tất cả các
 ${(characterFields.map(field => {
         // We already handled the special case for 'objective' inside the map.
         const value = characterData[field.key] as string;
-        if (!value || !value.trim()) {
+        if (!value || !value.trim() || (field.key === 'gender' && value === 'Bí Mật')) {
              const exampleAttr = field.isTagValueText ? 'text="..."' : `${field.key.toLowerCase()}="..."`;
             return `[GENERATED_${field.tag}: ${exampleAttr}]`;
         }
@@ -237,6 +261,7 @@ ${(characterFields.map(field => {
 ${(!characterData.talent?.name && !characterData.theChat?.name) ? '[GENERATED_PLAYER_TALENT: name="..." description="..."]' : ''}
 ${(!characterData.maxThoNguyen || characterData.maxThoNguyen <= 0) ? '[GENERATED_PLAYER_MAX_THO_NGUYEN: value=...]' : ''}
 ${(!characterData.thoNguyen || characterData.thoNguyen <= 0) ? '[GENERATED_PLAYER_THO_NGUYEN: value=...]' : ''}
+${(!worldData.storyName || !worldData.storyName.trim()) ? '[GENERATED_STORY_NAME: text="..."]' : ''}
 ${(!worldData.theme || !worldData.theme.trim()) ? '[GENERATED_WORLD_THEME: text="..."]' : ''}
 ${(!worldData.context || !worldData.context.trim()) ? '[GENERATED_WORLD_SETTING_DESCRIPTION: text="..."]' : ''}
 ${(!worldData.startingRealm || !worldData.startingRealm.trim()) ? '[GENERATED_CANH_GIOI_KHOI_DAU: text="..."]' : ''}

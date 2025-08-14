@@ -175,7 +175,7 @@ const parseNpcs = (tags: RegExpMatchArray[], cultivationSystem: string[] | null)
         const attributes = parseAttributes(tagMatch[2]);
         const race = attributes.race ?? 'Nhân Tộc';
         
-        const rawRealmString = attributes.realm ?? 'Người Thường';
+        const rawRealmString = attributes.realm ?? 'Phàm Nhân Nhất Trọng';
         let parsedRealm: RealmState | string = rawRealmString;
 
         // Try to parse if it's a cultivation realm

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useCharacterCreationStore, OBJECTIVE_OPTIONS, StartingBonusType } from './characterCreationStore';
+import { useCharacterCreationStore, StartingBonusType } from './characterCreationStore';
 import { generateInitialTalents, generateFactorSuggestions } from '../../core/services/geminiService';
 import { Talent } from '../../core/types';
 import SectionHeader from '../../components/ui/SectionHeader';
@@ -135,20 +135,6 @@ const CharacterAndStoryTab = () => {
         }
     };
 
-    const handleObjectiveChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = e.target.value;
-        if (value !== 'Tùy Chỉnh...') {
-            updateCharacterData({ objective: value });
-        } else {
-             // When user selects "Tùy Chỉnh...", clear the objective to allow for custom input.
-             updateCharacterData({ objective: '' });
-        }
-    };
-    
-    const handleCustomObjectiveChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        updateCharacterData({ objective: e.target.value });
-    }
-
     const handleStartingBonusTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newType = e.target.value as StartingBonusType;
         setStartingBonusType(newType);
@@ -204,9 +190,6 @@ const CharacterAndStoryTab = () => {
     }, [characterData.theChat, specialPhysiques]);
 
 
-    const finalObjectiveValue = (characterData.objective && OBJECTIVE_OPTIONS.includes(characterData.objective)) ? characterData.objective : 'Tùy Chỉnh...';
-
-
     return (
         <div className="space-y-8 animate-fade-in">
             <div>
@@ -226,13 +209,7 @@ const CharacterAndStoryTab = () => {
             <hr className="border-gray-700/60" />
             <div>
                 <div className="space-y-6">
-                    <div>
-                        <SelectField id="objective" name="objective" label="Mục Tiêu" value={finalObjectiveValue} onChange={handleObjectiveChange}>
-                            {OBJECTIVE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            <option value="Tùy Chỉnh...">Tùy Chỉnh...</option>
-                        </SelectField>
-                        {finalObjectiveValue === 'Tùy Chỉnh...' && (<div className="mt-4 animate-fade-in"><InputField id="customObjective" name="customObjective" label="Mục Tiêu Tùy Chỉnh" value={characterData.objective} onChange={handleCustomObjectiveChange} placeholder="Nhập mục tiêu của bạn..." required/></div>)}
-                    </div>
+                    <TextAreaField id="objective" name="objective" label="Mục Tiêu" value={characterData.objective} onChange={handleDataChange} placeholder="Ví dụ: Tìm kiếm sự bất tử, báo thù cho gia tộc, khám phá bí mật của thế giới..." required/>
                     <TextAreaField id="personality" name="personality" label="Tính Cách (Tùy chọn)" value={characterData.personality} onChange={handleDataChange} placeholder="Ví dụ: Lạnh lùng, quyết đoán, trọng tình nghĩa..."/>
                     <TextAreaField id="biography" name="biography" label="Tiểu Sử (Tùy chọn)" value={characterData.biography} onChange={handleDataChange} placeholder="Ví dụ: Là cô nhi được tán tu nuôi lớn..."/>
                 </div>

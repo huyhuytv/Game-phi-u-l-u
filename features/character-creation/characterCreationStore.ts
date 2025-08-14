@@ -19,14 +19,6 @@ import { useGameStore } from '../../store/useGameStore';
 import { useToastStore } from '../../store/useToastStore';
 
 
-export const OBJECTIVE_OPTIONS = [
-    'Vấn Đạo Trường Sinh',
-    'Báo Thù Rửa Hận',
-    'Bảo Hộ Chúng Sinh',
-    'Đứng Trên Vạn Người',
-    'Khám Phá Chân Tướng',
-];
-
 export type StartingBonusType = 'talent' | 'specialPhysique';
 
 const initialStartingFactors: StartingFactors = { skills: [], items: [], npcs: [], beasts: [], lore: [], locations: [], factions: [], wives: [], slaves: [], prisoners: [] };
@@ -57,7 +49,7 @@ const initialCharacterData: CharacterCreationData = {
     race: 'Nhân Tộc',
     personality: '',
     biography: '',
-    objective: OBJECTIVE_OPTIONS[0],
+    objective: '',
     linhCan: '',
     talent: { name: '', description: '' },
     theChat: { name: '', description: '' },
@@ -107,11 +99,11 @@ export const useCharacterCreationStore = create(
         updateCharacterData: (data) => {
             set(state => {
                 Object.assign(state.characterData, data);
-                 if (data.talent && data.talent.name.trim()) {
+                 if (data.talent && data.talent.name?.trim()) {
                     // If a talent is selected, clear the special physique
                     state.characterData.theChat = { name: '', description: '' };
                     state.startingBonusType = 'talent';
-                } else if (data.theChat && data.theChat.name.trim()) {
+                } else if (data.theChat && data.theChat.name?.trim()) {
                     // If a special physique is selected, clear the talent
                     state.characterData.talent = { name: '', description: '' };
                     state.startingBonusType = 'specialPhysique';
@@ -188,7 +180,7 @@ export const useCharacterCreationStore = create(
                 state.characterData.race = char.race || data.playerRace || 'Nhân Tộc';
                 state.characterData.personality = char.personality || data.playerPersonality || '';
                 state.characterData.biography = char.biography || data.playerBackstory || '';
-                state.characterData.objective = char.objective || data.playerGoal || OBJECTIVE_OPTIONS[0];
+                state.characterData.objective = char.objective || data.playerGoal || '';
 
                 // --- Import Starting Bonus ---
                 // Linh Can is always separate
@@ -299,7 +291,7 @@ export const useCharacterCreationStore = create(
         startGame: async () => {
             const { characterData, worldData, startingFactors } = get();
 
-            const isDestinySelected = characterData.talent.name.trim() || characterData.theChat?.name?.trim();
+            const isDestinySelected = characterData.talent?.name?.trim() || characterData.theChat?.name?.trim();
 
             if (!characterData.name?.trim() || !worldData.storyName.trim() || !characterData.linhCan?.trim() || !isDestinySelected) {
                 useToastStore.getState().addToast("Vui lòng nhập các thông tin bắt buộc: Tên, Tên truyện, Linh Căn và chọn Vận Mệnh (Thiên Phú/Thể Chất).", "error");
@@ -310,7 +302,7 @@ export const useCharacterCreationStore = create(
             
             const finalCharacterData: CharacterCreationData = {
                 ...characterData,
-                talent: characterData.talent.name.trim() ? characterData.talent : { name: 'Không có', description: '' },
+                talent: characterData.talent?.name?.trim() ? characterData.talent : { name: 'Không có', description: '' },
             };
 
             try {
