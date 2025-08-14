@@ -103,12 +103,12 @@ const generateNotifications = (update: ParsedStoryUpdate, currencyName: string, 
             notifications.push(`[Cập nhật] Nhiệm vụ "${qUpd.title}": Hoàn thành mục tiêu "${qUpd.objectiveText}".`);
         }
     });
-    update.questsCompleted.forEach(q => notifications.push(`[Hoàn thành] Nhiệm vụ: ${q.title}`);
-    update.questsFailed.forEach(q => notifications.push(`[Thất bại] Nhiệm vụ: ${q.title}`);
+    update.questsCompleted.forEach(q => notifications.push(`[Hoàn thành] Nhiệm vụ: ${q.title}`));
+    update.questsFailed.forEach(q => notifications.push(`[Thất bại] Nhiệm vụ: ${q.title}`));
 
     // World Events
     update.eventsTriggered.forEach(e => notifications.push(`[Sự kiện] Tin tức mới: ${e.title}`));
-    update.eventsRevealed.forEach(e => notifications.push(`[Tình báo] Bạn khám phá ra một chi tiết mới về sự kiện "${e.eventTitle}".`))
+    update.eventsRevealed.forEach(e => notifications.push(`[Tình báo] Bạn khám phá ra một chi tiết mới về sự kiện "${e.eventTitle}".`));
 
     // Important entity changes
     if (update.npcsAdded.length > 0) {
