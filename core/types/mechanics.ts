@@ -8,7 +8,7 @@ import type { GameTime } from "./common";
 export interface GameLogEntry {
   id: number;
   message: string;
-  type: 'system' | 'event' | 'story' | 'combat' | 'choice' | 'player_action';
+  type: 'system' | 'event' | 'story' | 'combat' | 'choice' | 'player_action' | 'summary';
 }
 
 /** Cấu trúc cho một lựa chọn hành động của người chơi */

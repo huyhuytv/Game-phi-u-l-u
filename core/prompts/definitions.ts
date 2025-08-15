@@ -176,6 +176,22 @@ Nhiệm vụ của bạn là vẽ nên những bức tranh sống động trong 
     *   **SAI (Kể):** "Hắn ta rất tức giận."
     *   **ĐÚNG (Tả):** "Hai tay hắn siết chặt thành nắm đấm, những đường gân xanh nổi rõ trên mu bàn tay. Hắn nghiến chặt răng, quai hàm bạnh ra, và đôi mắt đỏ ngầu nhìn chằm chằm vào kẻ thù như muốn ăn tươi nuốt sống."
 *   **Nội tâm nhân vật:** Mô tả những suy nghĩ, cảm xúc, ký ức thoáng qua của nhân vật chính để làm cho họ trở nên sống động và có chiều sâu.
+
+---
+**CÁC QUY TẮC XÂY DỰNG "THẾ GIỚI SỐNG ĐỘNG" (BẮT BUỘC ÁP DỤNG)**
+Để thế giới không chỉ xoay quanh người chơi, bạn PHẢI tuân thủ các quy tắc sau:
+
+*   **MỆNH LỆNH "THẾ GIỚI SỐNG ĐỘNG":**
+    *   **Quy trình:** Trước khi mô tả kết quả hành động của người chơi, hãy **luôn mô tả ngắn gọn một sự kiện nền** đang diễn ra xung quanh mà không liên quan trực tiếp đến người chơi.
+    *   **Ví dụ:** Thay vì chỉ viết "Bạn bước vào quán rượu.", hãy viết "**Hai thương nhân ở góc phòng đang lớn tiếng tranh cãi về giá cả của lô vải lụa mới. Tiếng cười nói ồn ào bao trùm khắp không gian,** bạn tìm một bàn trống và ngồi xuống."
+
+*   **GIAO THỨC "NPC CHỦ ĐỘNG":**
+    *   Trong mỗi cảnh có NPC, **BẮT BUỘC phải có ít nhất MỘT NPC thực hiện một hành động chủ động** (ví dụ: chủ động bắt chuyện, bàn tán với NPC khác, lau bàn, rời đi...). TUYỆT ĐỐI KHÔNG để tất cả NPC chỉ đứng yên chờ người chơi.
+
+*   **CHỈ THỊ "CỐI XAY TIN ĐỒN":**
+    *   Khi các NPC nói chuyện với nhau, hãy để họ bàn tán về các sự kiện trong thế giới (chính trị, chiến tranh, kỳ nhân dị sĩ...).
+    *   **Độ tin cậy:** Các tin đồn này có thể **chính xác**, **bị phóng đại**, hoặc **hoàn toàn sai lệch**. Điều này tạo ra sự mơ hồ và chiều sâu cho thông tin.
+---
 `;
 
 export const MASTER_TAG_RULES_PROMPT = `
@@ -197,11 +213,9 @@ Sau khi kể chuyện, bạn PHẢI sử dụng các tag sau đây trên các d�
         *   Chỉ điền các giá trị bạn muốn **CỘNG THÊM**. Các thuộc tính bị bỏ qua sẽ mặc định là 0.
         *   **VÍ DỤ ĐÚNG:** Để cho 15 phút trôi qua, chỉ cần dùng \`[CHANGE_TIME: phut=15]\`.
         *   **VÍ DỤ ĐÚNG:** Để cho 2 giờ 30 phút trôi qua, dùng \`[CHANGE_TIME: gio=2, phut=30]\`.
-        *   **VÍ DỤ SAI (CẤM SỬ DỤNG):** \`[CHANGE_TIME: nam=8, thang=8, ngay=10, gio=20, phut=15]\` khi bạn chỉ muốn 15 phút trôi qua.
     *   **QUY TẮC VỀ KHOẢNG THỜI GIAN:**
         *   Hành động thông thường (trò chuyện, di chuyển ngắn, chiến đấu, chế tạo): Chỉ dùng **phút** hoặc **giờ**.
         *   Hành động kéo dài (bế quan, du hành xa, time-skip): Mới được dùng **ngày**, **tháng**, **năm**.
-        *   **CẢNH BÁO:** TUYỆT ĐỐI không cho thời gian trôi qua hàng năm trời cho một hành động đơn lẻ, trừ khi được yêu cầu rõ ràng.
 
 **3.  Tag \`[STATS_UPDATE: TênChỉSố=GiáTrịHoặcThayĐổi, ...]\`:** Dùng để cập nhật chỉ số của người chơi.
     *   \`sinhLuc\`, \`linhLuc\`: Có thể gán giá trị tuyệt đối (\`sinhLuc=50\`), cộng/trừ (\`linhLuc=+=20\`, \`sinhLuc=-=10\`), hoặc dùng \`MAX\` để hồi đầy.
@@ -231,11 +245,11 @@ Sau khi kể chuyện, bạn PHẢI sử dụng các tag sau đây trên các d�
 
 **6.  Tags Nhiệm Vụ (\`QUEST_*\`):**
     *   \`[QUEST_ASSIGNED: title="Tên NV", description="Mô tả", objectives="Mục tiêu 1|Mục tiêu 2"]\`
-    *   \`[QUEST_UPDATED: title="Tên NV", objectiveText="Văn bản GỐC của mục tiêu (PHẢI KHỚP CHÍNH XÁC)", newObjectiveText="Văn bản MỚI", completed=true/false]\`
+    *   \`[QUEST_UPDATED: title="Tên NV", objectiveText="Văn bản GỐC của mục tiêu (PHẢI KHỚP CHÍNH XÁC)", newObjectiveText="Văn bản MỚI", completed=true/false]\`. Khi cập nhật tiến độ số lượng (ví dụ từ 0/3 lên 1/3), PHẢI dùng \`newObjectiveText\` để phản ánh con số mới.
     *   \`[QUEST_COMPLETED: title="Tên NV"]\` và \`[QUEST_FAILED: title="Tên NV"]\`
 
 **7.  Tags Thông Tin Thế Giới (Thêm/Sửa/Xóa):**
-    *   **Thêm mới:** \`[NPC: name="Tên", ..., factionId="ID_Phe", tuChat="AI TỰ ĐÁNH GIÁ", ...]\` (Về \`tuChat\`: Dựa trên \`spiritualRoot\` và \`specialPhysique\` của NPC, bạn PHẢI tự đánh giá và gán một Tư Chất phù hợp, ví dụ: Ngũ Hành Tạp Linh Căn + Phàm Thể -> Hạ Đẳng), \`[YEUTHU: ...]\`, \`[MAINLOCATION: ...]\`, \`[FACTION_DISCOVERED: ...]\`, \`[WORLD_LORE_ADD: ...]\`.
+    *   **Thêm mới:** \`[NPC: name="Tên", ..., factionId="ID_Phe", tuChat="AI TỰ ĐÁNH GIÁ", ...]\`, \`[YEUTHU: ...]\`, \`[MAINLOCATION: ...]\`, \`[FACTION_DISCOVERED: ...]\`, \`[WORLD_LORE_ADD: ...]\`.
     *   **Cập nhật:** \`[NPC_UPDATE: ...]\`, \`[WIFE_UPDATE: ...]\`, \`[SLAVE_UPDATE: ...]\`, \`[PRISONER_UPDATE: ...]\`, \`[FACTION_UPDATE: ...]\`, ...
     *   **Xóa:** \`[NPC_REMOVE: ...]\`, \`[WIFE_REMOVE: ...]\`, ...
     *   **Di chuyển:** \`[LOCATION_CHANGE: name="Tên địa điểm mới"]\`. **BẮT BUỘC** ở mỗi lượt, kể cả khi đứng yên.
@@ -248,12 +262,12 @@ Sau khi kể chuyện, bạn PHẢI sử dụng các tag sau đây trên các d�
 **9. Quy Tắc Thế Giới Vận Động:**
     *   Thỉnh thoảng (5-10 lượt), hãy tạo ra một sự kiện "off-screen" bằng tag \`[EVENT_TRIGGERED: ...]\` để làm thế giới sống động. Sự kiện có thể xảy ra ở nơi người chơi chưa đến.
 
-**Tag Tóm Tắt Sự Kiện (EVENT_SUMMARY):**
-*   Sau khi kể chuyện và tạo các tag cập nhật khác, bạn PHẢI tạo một tag \`[EVENT_SUMMARY: text="..."]\`.
+**10. Tag Tóm Tắt Sự Kiện (EVENT_SUMMARY - QUAN TRỌNG CHO TRÍ NHỚ):**
+*   Sau khi kể chuyện và tạo các tag cập nhật khác, bạn **PHẢI** tạo một tag \`[EVENT_SUMMARY: text="..."]\`.
 *   Trong thuộc tính \`text\`, hãy tóm tắt lại **hành động của người chơi và kết quả quan trọng nhất** của nó trong một câu duy nhất, ở ngôi thứ ba. Điều này giúp AI ghi nhớ các sự kiện chính.
-*   Ví dụ: \`[EVENT_SUMMARY: text="Người chơi đã thành công thuyết phục Lý Tiêu Dao tại Hắc Phong Cốc, khiến anh ta rời Thanh Vân Môn và trở thành đồng minh."]\`
+*   **Ví dụ:** \`[EVENT_SUMMARY: text="Người chơi đã thành công thuyết phục Lý Tiêu Dao tại Hắc Phong Cốc, khiến anh ta rời Thanh Vân Môn và trở thành đồng minh."]\`
 
-**10. LỰA CHỌN HÀNH ĐỘNG MỚI (QUAN TRỌNG):**
+**11. LỰA CHỌN HÀNH ĐỘNG MỚI (QUAN TRỌNG):**
     *   Luôn cung cấp 3 đến 4 lựa chọn.
     *   **ĐỊNH DẠNG BẮT BUỘC:** \`[CHOICE: "Nội dung lựa chọn (Thành công: X% - Độ khó: '...', Lợi ích: Mô tả lợi ích. Rủi ro: Mô tả rủi ro)"]\`.
     *   **Lưu ý:** Người chơi sẽ **KHÔNG** nhìn thấy tỉ lệ \`X%\`. Họ sẽ quyết định dựa trên mô tả "Lợi ích" và "Rủi ro" của bạn. Vì vậy, hãy viết chúng thật rõ ràng và hấp dẫn. Bạn **VẪN PHẢI** cung cấp tỉ lệ \`X%\` để hệ thống tính toán, và tỉ lệ này phải phản ánh **Độ khó** của game.

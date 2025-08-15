@@ -5,9 +5,9 @@ import {
     WorldData, StartingFactors, RealmState, Choice, GameTime, AnyItem,
     AnySkill, Quest, StatusEffect, ParsedStoryUpdate, Wife, Slave, Prisoner,
     WorldEvent, AnyCharacter, Companion, StatsUpdate, TimeUpdate, QuestUpdatePayload, EntityUpdatePayload, SpecialNPCUpdatePayload, CompanionUpdatePayload, WorldEventUpdatePayload, WorldEventDetailPayload, NPC, Beast, Lore, Faction, StartingFactorItem,
-    PlayerRelatedState, WorldState, GameSessionState, SaveGame, VectorEntityType, VectorStore, ParsedInitialGameData, VectorMetadata
+    PlayerRelatedState, WorldState, GameSessionState, SaveGame, VectorEntityType, VectorStore, ParsedInitialGameData, VectorMetadata, GamePage
 } from '../core/types';
-import { getStoryUpdate, generateSummary } from '../core/services/geminiService';
+import { getStoryUpdate, generateChapterSummary } from '../core/services/geminiService';
 import { parseStoryUpdate } from '../core/services/storyUpdateParser';
 import { useToastStore } from './useToastStore';
 import { parseRealmString, calculateMaxThoNguyen } from '../core/utils/realmUtils';
@@ -16,7 +16,7 @@ import * as saveLoadService from '../core/services/saveLoadService';
 import * as RAG from '../core/rag';
 import { generateEmbeddings } from '../core/services/embeddingService';
 import { useSettingsStore } from './useSettingsStore';
-import { createStoryUpdatePrompt, DEFAULT_CULTIVATION_REALMS } from '../core/prompts';
+import { createStoryUpdatePrompt, createChapterSummaryPrompt, DEFAULT_CULTIVATION_REALMS } from '../core/prompts';
 
 // =================================================================
 // HELPER FUNCTIONS
@@ -142,7 +142,7 @@ const initialPlayerState: PlayerState = {
 };
 
 const initialGameTime: GameTime = { year: 500, month: 1, day: 1, hour: 8, minute: 0 };
-const SUMMARY_TURN_INTERVAL = 5;
+const CHAPTER_SUMMARY_TURN_INTERVAL = 20;
 
 // =================================================================
 // DOMAIN-SPECIFIC STORES
@@ -504,8 +504,8 @@ interface SessionActions {
     setIsLoading: (loading: boolean) => void;
     setAwaitingPlayerAction: (awaiting: boolean) => void;
     setChoices: (choices: Choice[]) => void;
-    addSummary: (summary: string) => void;
-    incrementTurnCounter: (amount?: number) => void;
+    setCurrentPageIndex: (index: number) => void;
+    addSummaryAndNewPage: (summary: string, playerStateEnd: PlayerState) => void;
     setCurrentTurnNotifications: (notifications: string[]) => void;
     resetSession: () => void;
     setSaveOrigin: (from: GameScreenState | null) => void;
@@ -516,38 +516,74 @@ interface SessionActions {
     addDebugRawResponseLog: (response: string) => void;
 }
 
-const useGameSessionStore = create(immer<GameSessionState & SessionActions>((set, get) => ({
-    logs: [], isLoading: false, isAwaitingPlayerAction: false, gameState: 'MainMenu',
-    currentChoices: [], storySummaries: [], turnCounter: 0, currentTurnNotifications: [],
-    saveOrigin: null, playthroughId: '', hasAutoSave: false, 
-    debugRetrievedContextLog: [], debugSentPromptsLog: [], debugRawResponsesLog: [],
+type GameSessionStoreInternalState = GameSessionState & {
+    turnCounterForSummary: number;
+};
+
+const useGameSessionStore = create(immer<GameSessionStoreInternalState & SessionActions>((set) => ({
+    // State from GameSessionState interface
+    pages: [{ id: 1, logs: [], summary: null, playerStateStart: null }],
+    currentPageIndex: 0,
+    isLoading: false,
+    isAwaitingPlayerAction: false,
+    gameState: 'MainMenu',
+    currentChoices: [],
+    currentTurnNotifications: [],
+    saveOrigin: null,
+    playthroughId: '',
+    hasAutoSave: false,
+    debugRetrievedContextLog: [],
+    debugSentPromptsLog: [],
+    debugRawResponsesLog: [],
     
+    // Internal state, not part of saved data
+    turnCounterForSummary: 0,
+
     setGameState: (gameState) => set({ gameState }),
     addLog: (message, type) => {
-        set(state => {
-            const lastLog = state.logs[state.logs.length - 1];
-            if (lastLog?.message === message && lastLog?.type === type) return;
-            state.logs.push({ id: Date.now() + Math.random(), message, type });
+        set((state) => {
+            const currentPage = state.pages[state.currentPageIndex];
+            if (currentPage) {
+                const lastLog = currentPage.logs[currentPage.logs.length - 1];
+                if (lastLog?.message === message && lastLog?.type === type) return;
+                currentPage.logs.push({ id: Date.now() + Math.random(), message, type });
+            }
         });
     },
     setIsLoading: (loading) => set({ isLoading: loading }),
     setAwaitingPlayerAction: (awaiting) => set({ isAwaitingPlayerAction: awaiting }),
     setChoices: (choices) => set({ currentChoices: choices }),
-    addSummary: (summary) => set(state => { state.storySummaries.push(summary) }),
-    incrementTurnCounter: (amount = 1) => set(state => { state.turnCounter += amount }),
+    setCurrentPageIndex: (index) => set(state => {
+        if (index >= 0 && index < state.pages.length) {
+            state.currentPageIndex = index;
+        }
+    }),
+    addSummaryAndNewPage: (summary, playerStateEnd) => {
+        set(state => {
+            const currentPage = state.pages[state.currentPageIndex];
+            if (currentPage) {
+                currentPage.summary = summary;
+                currentPage.logs.push({ id: Date.now() + Math.random(), message: summary, type: 'summary' });
+            }
+            const newPageId = state.pages.length > 0 ? Math.max(...state.pages.map(p => p.id)) + 1 : 1;
+            // Deep copy the player state to prevent mutations
+            const playerStateCopy = JSON.parse(JSON.stringify(playerStateEnd));
+            state.pages.push({ id: newPageId, logs: [], summary: null, playerStateStart: playerStateCopy });
+            state.currentPageIndex = state.pages.length - 1;
+        });
+    },
     setCurrentTurnNotifications: (notifications) => set({ currentTurnNotifications: notifications }),
     resetSession: () => set(state => {
-        state.logs = [];
+        state.pages = [{ id: 1, logs: [], summary: null, playerStateStart: null }];
+        state.currentPageIndex = 0;
+        state.turnCounterForSummary = 0;
         state.currentChoices = [];
-        state.storySummaries = [];
-        state.turnCounter = 0;
         state.currentTurnNotifications = [];
         state.saveOrigin = null;
         state.playthroughId = '';
         state.debugRetrievedContextLog = [];
         state.debugSentPromptsLog = [];
         state.debugRawResponsesLog = [];
-        // Other properties like gameState, isLoading, etc., are intentionally preserved.
     }),
     setSaveOrigin: (from) => set({ saveOrigin: from }),
     setPlaythroughId: (id) => set({ playthroughId: id }),
@@ -555,16 +591,16 @@ const useGameSessionStore = create(immer<GameSessionState & SessionActions>((set
     addDebugRetrievedContextLog: (context) => set(state => {
         if (context) {
             state.debugRetrievedContextLog.unshift(`[${new Date().toLocaleTimeString()}]\n${context}`);
-            state.debugRetrievedContextLog.splice(20); // Keep only the last 20 logs
+            state.debugRetrievedContextLog.splice(20);
         }
     }),
     addDebugSentPromptLog: (prompt) => set(state => {
         state.debugSentPromptsLog.unshift(`[${new Date().toLocaleTimeString()}]\n${prompt}`);
-        state.debugSentPromptsLog.splice(20); // Keep only the last 20 logs
+        state.debugSentPromptsLog.splice(20);
     }),
     addDebugRawResponseLog: (response) => set(state => {
         state.debugRawResponsesLog.unshift(`[${new Date().toLocaleTimeString()}]\n${response}`);
-        state.debugRawResponsesLog.splice(20); // Keep only the last 20 logs
+        state.debugRawResponsesLog.splice(20);
     }),
 })));
 
@@ -584,20 +620,19 @@ export const getCurrentGameState = (): {
 } => {
     const { player, quests, statusEffects, wives, slaves, prisoners, companions } = usePlayerStore.getState();
     const { worldData, startingFactors, currentLocation, gameTime, worldEvents, ragVectorStore } = useWorldStore.getState();
-    const { logs, isAwaitingPlayerAction, gameState, currentChoices, storySummaries, turnCounter, playthroughId, hasAutoSave, debugRetrievedContextLog, debugRawResponsesLog, debugSentPromptsLog } = useGameSessionStore.getState();
+    const { pages, currentPageIndex, isAwaitingPlayerAction, gameState, currentChoices, playthroughId, hasAutoSave, debugRetrievedContextLog, debugRawResponsesLog, debugSentPromptsLog } = useGameSessionStore.getState();
 
     return {
         playerState: { player, quests, statusEffects, wives, slaves, prisoners, companions },
         worldState: { worldData, startingFactors, currentLocation, gameTime, worldEvents, ragVectorStore },
         // Sanitize session state for saving
         sessionState: { 
-            logs, 
+            pages, 
+            currentPageIndex,
             isLoading: false, // Never save in a loading state
             isAwaitingPlayerAction, 
             gameState: 'Playing', // Always load into the 'Playing' screen
             currentChoices, 
-            storySummaries, 
-            turnCounter, 
             currentTurnNotifications: [], // Clear transient notifications
             saveOrigin: null, // Reset save/load context
             playthroughId,
@@ -751,6 +786,7 @@ interface GameStoreActions {
     continueGame: () => Promise<void>;
     checkForAutoSave: () => Promise<void>;
     setGameState: (gameState: GameScreenState) => void;
+    setCurrentPageIndex: (index: number) => void;
 }
 
 
@@ -793,7 +829,9 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         sessionActions.setAwaitingPlayerAction(update.choices.length > 0);
         if (update.statsUpdate) {
             playerActions.applyStatsUpdate(update.statsUpdate);
-            if (update.statsUpdate.turn) sessionActions.incrementTurnCounter(update.statsUpdate.turn);
+            if (update.statsUpdate.turn) {
+                useGameSessionStore.setState(state => { state.turnCounterForSummary += update.statsUpdate.turn! });
+            }
         }
         if (update.timeUpdate) worldActions.advanceTime(update.timeUpdate);
         if (update.removeBinhCanhEffect) playerActions.removeBinhCanhEffect(update.removeBinhCanhEffect.kinhNghiemGain);
@@ -970,15 +1008,15 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         
         try {
             const fullCurrentState = get();
-            const { logs, storySummaries } = useGameSessionStore.getState();
+            const { pages, currentPageIndex } = useGameSessionStore.getState();
             
             const retrievedContext = await retrieveContextForAction(choice.fullText, fullCurrentState);
             sessionActions.addDebugRetrievedContextLog(retrievedContext);
 
-            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext, 'action');
+            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, pages, currentPageIndex, choice.fullText, retrievedContext, 'action');
             sessionActions.addDebugSentPromptLog(prompt);
             
-            const responseText = await getStoryUpdate(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext, 'action');
+            const responseText = await getStoryUpdate(player, worldData, gameTime, pages, currentPageIndex, choice.fullText, retrievedContext, 'action');
             sessionActions.addDebugRawResponseLog(responseText);
 
             const parsedUpdate = parseStoryUpdate(responseText);
@@ -1007,15 +1045,26 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             
             await get().autoSaveGame();
 
-            const currentTurnCounter = useGameSessionStore.getState().turnCounter;
-            if (currentTurnCounter >= SUMMARY_TURN_INTERVAL) {
-                 useGameSessionStore.setState({ turnCounter: 0 }); 
-                const logsToSummarize = useGameSessionStore.getState().logs.slice(- (SUMMARY_TURN_INTERVAL * 2)).map(l => l.type === 'player_action' ? `[Hành động] ${l.message}` : l.message).join('\n');
-                if (logsToSummarize.length > 50) {
-                    const summary = await generateSummary(logsToSummarize);
-                    if (summary && summary !== "Tóm tắt thất bại.") {
-                        sessionActions.addSummary(summary);
-                        sessionActions.addLog(`[Ký Ức] ${summary}`, 'system');
+            const { turnCounterForSummary: currentTurnCounter } = useGameSessionStore.getState();
+            if (currentTurnCounter >= CHAPTER_SUMMARY_TURN_INTERVAL) {
+                useGameSessionStore.setState({ turnCounterForSummary: 0 });
+                const { pages: updatedPages, currentPageIndex: updatedPageIndex } = useGameSessionStore.getState();
+                const currentPage = updatedPages[updatedPageIndex];
+                const playerStateEnd = usePlayerStore.getState().player;
+                const worldData = useWorldStore.getState().worldData;
+
+                if (currentPage && currentPage.playerStateStart && worldData && currentPage.logs.length > 0) {
+                    useToastStore.getState().addToast("Đang ghi lại hồi ký...", "info");
+                    
+                    const prompt = createChapterSummaryPrompt(worldData, currentPage.playerStateStart, playerStateEnd, currentPage.logs);
+                    sessionActions.addDebugSentPromptLog(`[TÓM TẮT HỒI KÝ]\n${prompt}`);
+
+                    const summary = await generateChapterSummary(worldData, currentPage.playerStateStart, playerStateEnd, currentPage.logs);
+                    
+                    sessionActions.addDebugRawResponseLog(`[TÓM TẮT HỒI KÝ]\n${summary}`);
+
+                    if (summary && summary !== "Tóm tắt hồi ký thất bại.") {
+                        sessionActions.addSummaryAndNewPage(summary, playerStateEnd);
                     }
                 }
             }
@@ -1044,15 +1093,15 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         
         try {
             const fullCurrentState = get();
-            const { logs, storySummaries } = useGameSessionStore.getState();
+            const { pages, currentPageIndex } = useGameSessionStore.getState();
             
             const retrievedContext = await retrieveContextForAction(inputText, fullCurrentState);
             sessionActions.addDebugRetrievedContextLog(retrievedContext);
             
-            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, logs, storySummaries, inputText, retrievedContext, mode);
+            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, pages, currentPageIndex, inputText, retrievedContext, mode);
             sessionActions.addDebugSentPromptLog(prompt);
             
-            const responseText = await getStoryUpdate(player, worldData, gameTime, logs, storySummaries, inputText, retrievedContext, mode);
+            const responseText = await getStoryUpdate(player, worldData, gameTime, pages, currentPageIndex, inputText, retrievedContext, mode);
             sessionActions.addDebugRawResponseLog(responseText);
 
             const parsedUpdate = parseStoryUpdate(responseText);
@@ -1081,15 +1130,26 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             
             await get().autoSaveGame();
 
-            const currentTurnCounter = useGameSessionStore.getState().turnCounter;
-            if (currentTurnCounter >= SUMMARY_TURN_INTERVAL) {
-                 useGameSessionStore.setState({ turnCounter: 0 }); 
-                const logsToSummarize = useGameSessionStore.getState().logs.slice(- (SUMMARY_TURN_INTERVAL * 2)).map(l => l.type === 'player_action' ? `[Hành động] ${l.message}` : l.message).join('\n');
-                if (logsToSummarize.length > 50) {
-                    const summary = await generateSummary(logsToSummarize);
-                    if (summary && summary !== "Tóm tắt thất bại.") {
-                        sessionActions.addSummary(summary);
-                        sessionActions.addLog(`[Ký Ức] ${summary}`, 'system');
+            const { turnCounterForSummary: currentTurnCounter } = useGameSessionStore.getState();
+            if (currentTurnCounter >= CHAPTER_SUMMARY_TURN_INTERVAL) {
+                useGameSessionStore.setState({ turnCounterForSummary: 0 });
+                const { pages: updatedPages, currentPageIndex: updatedPageIndex } = useGameSessionStore.getState();
+                const currentPage = updatedPages[updatedPageIndex];
+                const playerStateEnd = usePlayerStore.getState().player;
+                const worldData = useWorldStore.getState().worldData;
+
+                if (currentPage && currentPage.playerStateStart && worldData && currentPage.logs.length > 0) {
+                    useToastStore.getState().addToast("Đang ghi lại hồi ký...", "info");
+                    
+                    const prompt = createChapterSummaryPrompt(worldData, currentPage.playerStateStart, playerStateEnd, currentPage.logs);
+                    sessionActions.addDebugSentPromptLog(`[TÓM TẮT HỒI KÝ]\n${prompt}`);
+
+                    const summary = await generateChapterSummary(worldData, currentPage.playerStateStart, playerStateEnd, currentPage.logs);
+                    
+                    sessionActions.addDebugRawResponseLog(`[TÓM TẮT HỒI KÝ]\n${summary}`);
+
+                    if (summary && summary !== "Tóm tắt hồi ký thất bại.") {
+                        sessionActions.addSummaryAndNewPage(summary, playerStateEnd);
                     }
                 }
             }
@@ -1127,6 +1187,7 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         sessionActions.resetSession();
         sessionActions.setPlaythroughId(crypto.randomUUID());
         sessionActions.addDebugSentPromptLog(initialPrompt);
+        sessionActions.addDebugRawResponseLog(initialGameData.storyText);
         
         const realmNames = worldData.cultivationSystem ?? DEFAULT_CULTIVATION_REALMS;
         const userDefinedRealm = worldData.startingRealm?.trim();
@@ -1160,6 +1221,14 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         useWorldStore.getState().initializeWorld(worldData, startingFactors);
         usePlayerStore.getState().initializePlayer(player, startingFactors);
         
+        // Set playerStateStart for the first page
+        const initialPlayerStateForPage = usePlayerStore.getState().player;
+        useGameSessionStore.setState(state => {
+            if (state.pages[0]) {
+                state.pages[0].playerStateStart = JSON.parse(JSON.stringify(initialPlayerStateForPage));
+            }
+        });
+
         sessionActions.setGameState('Playing');
         get().processTagsAndQueueChanges(initialGameData);
 
@@ -1228,6 +1297,20 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         sessionState.debugRetrievedContextLog = sessionState.debugRetrievedContextLog || [];
         sessionState.debugSentPromptsLog = sessionState.debugSentPromptsLog || [];
         sessionState.debugRawResponsesLog = sessionState.debugRawResponsesLog || [];
+        
+        // Migration for old saves without playerStateStart
+        if (sessionState.pages) {
+            sessionState.pages.forEach(p => {
+                if (p.playerStateStart === undefined) {
+                    p.playerStateStart = null;
+                }
+            });
+            const currentPage = sessionState.pages[sessionState.currentPageIndex];
+            if (currentPage && !currentPage.playerStateStart) {
+                currentPage.playerStateStart = JSON.parse(JSON.stringify(playerState.player));
+            }
+        }
+
         usePlayerStore.setState(playerState);
         useWorldStore.setState(worldState);
         useGameSessionStore.setState(sessionState);
@@ -1258,6 +1341,7 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         }
     },
     setGameState: (gameState) => useGameSessionStore.getState().setGameState(gameState),
+    setCurrentPageIndex: (index) => useGameSessionStore.getState().setCurrentPageIndex(index),
 }));
 
 // =================================================================
@@ -1275,11 +1359,18 @@ usePlayerStore.subscribe(
 useGameSessionStore.subscribe(
   (newState) => {
     const stateSlice: GameSessionState = {
-        logs: newState.logs, isLoading: newState.isLoading, isAwaitingPlayerAction: newState.isAwaitingPlayerAction,
-        gameState: newState.gameState, currentChoices: newState.currentChoices, storySummaries: newState.storySummaries,
-        turnCounter: newState.turnCounter, currentTurnNotifications: newState.currentTurnNotifications,
-        saveOrigin: newState.saveOrigin, playthroughId: newState.playthroughId, hasAutoSave: newState.hasAutoSave,
-        debugRetrievedContextLog: newState.debugRetrievedContextLog, debugSentPromptsLog: newState.debugSentPromptsLog,
+        pages: newState.pages,
+        currentPageIndex: newState.currentPageIndex,
+        isLoading: newState.isLoading,
+        isAwaitingPlayerAction: newState.isAwaitingPlayerAction,
+        gameState: newState.gameState,
+        currentChoices: newState.currentChoices,
+        currentTurnNotifications: newState.currentTurnNotifications,
+        saveOrigin: newState.saveOrigin,
+        playthroughId: newState.playthroughId,
+        hasAutoSave: newState.hasAutoSave,
+        debugRetrievedContextLog: newState.debugRetrievedContextLog,
+        debugSentPromptsLog: newState.debugSentPromptsLog,
         debugRawResponsesLog: newState.debugRawResponsesLog,
     };
     useGameStore.setState(stateSlice);

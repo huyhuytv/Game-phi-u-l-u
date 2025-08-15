@@ -24,18 +24,20 @@ const TABS: { id: Tab; label: string; }[] = [
 
 const InformationPanel: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('story');
-    const { isLoading, isAwaitingPlayerAction, logs } = useGameStore((state) => ({
+    const { isLoading, isAwaitingPlayerAction, pages, currentPageIndex } = useGameStore((state) => ({
         isLoading: state.isLoading,
         isAwaitingPlayerAction: state.isAwaitingPlayerAction,
-        logs: state.logs,
+        pages: state.pages,
+        currentPageIndex: state.currentPageIndex,
     }));
     const endOfContentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (activeTab === 'story') {
+        // Only scroll to bottom if we are on the story tab and it's the latest page
+        if (activeTab === 'story' && currentPageIndex === pages.length - 1) {
             endOfContentRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [logs, activeTab]);
+    }, [pages, currentPageIndex, activeTab]);
 
     const renderPanel = (tab: Tab) => {
         if (tab !== activeTab) {

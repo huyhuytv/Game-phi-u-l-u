@@ -1,9 +1,10 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
     CharacterCreationData, PlayerState, GameLogEntry, Talent, WorldData, StartingFactors, AnySkill, 
     AnyItem, AnyCharacter, Beast, Lore, Location, Faction, RealmState, CongPhapSkill, LinhKiSkill, 
     CamThuatSkill, NgheNghiepSkill, ThanThongSkill, EquipmentItem, PotionItem, MaterialItem, 
-    CongPhapItem, LinhKiItem, ProfessionSkillBookItem, ProfessionToolItem, Trait, GameTime
+    CongPhapItem, LinhKiItem, ProfessionSkillBookItem, ProfessionToolItem, Trait, GameTime, GamePage
 } from "../types";
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { 
@@ -12,19 +13,21 @@ import {
     INITIAL_TALENTS_PROMPT,
     createFactorSuggestionsPrompt,
     createStoryUpdatePrompt,
-    createSummaryPrompt,
+    createChapterSummaryPrompt,
     getDynamicAdultContentPrompt,
     DEFAULT_CULTIVATION_REALMS,
     MASTER_GAME_PROMPT,
+    createSummaryPrompt,
 } from "../prompts";
 
-// Assuming API_KEY is set in the execution environment.
+// The API key is obtained exclusively from the environment variable `process.env.API_KEY`.
+// This variable is assumed to be pre-configured and valid in the execution environment.
 const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
-  // In a real app, you might want to show a graceful error to the user.
-  // For this context, we'll log an error.
-  console.error("API_KEY is not set in environment variables.");
+  // This error will appear in the user's browser console if the key isn't set.
+  console.error("API_KEY is not set in environment variables. Please ensure it is configured in the execution environment.");
+  // In a real app, you might want to show a graceful error to the user on the screen.
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
@@ -476,15 +479,37 @@ Lời kể phải khiến người đọc tin rằng đây là do chính ngườ
 };
 
 
-export const generateSummary = async (events: string): Promise<string> => {
+export const generateChapterSummary = async (
+    worldData: WorldData,
+    playerStateStart: PlayerState,
+    playerStateEnd: PlayerState,
+    logs: GameLogEntry[]
+): Promise<string> => {
     try {
-        const prompt = createSummaryPrompt(events);
+        const prompt = createChapterSummaryPrompt(worldData, playerStateStart, playerStateEnd, logs);
+        const response = await ai.models.generateContent({
+            model: getModelForApi(),
+            contents: prompt,
+            config: {
+                temperature: 0.8,
+                topP: 1,
+            }
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating chapter summary:", error);
+        return "Tóm tắt hồi ký thất bại.";
+    }
+};
+
+export const generateSummary = async (logText: string): Promise<string> => {
+    try {
+        const prompt = createSummaryPrompt(logText);
         const response = await ai.models.generateContent({
             model: getModelForApi(),
             contents: prompt,
             config: {
                 temperature: 0.7,
-                topP: 1,
             }
         });
         return response.text.trim();
@@ -524,14 +549,14 @@ export const getStoryUpdate = async (
     playerState: PlayerState,
     worldData: WorldData,
     gameTime: GameTime,
-    history: GameLogEntry[],
-    storySummaries: string[],
+    pages: GamePage[],
+    currentPageIndex: number,
     playerAction: string,
     retrievedContext: string | undefined,
     mode: 'action' | 'story'
 ): Promise<string> => {
     try {
-        const prompt = createStoryUpdatePrompt(playerState, worldData, gameTime, history, storySummaries, playerAction, retrievedContext, mode);
+        const prompt = createStoryUpdatePrompt(playerState, worldData, gameTime, pages, currentPageIndex, playerAction, retrievedContext, mode);
         const response = await ai.models.generateContent({
             model: getModelForApi(),
             contents: prompt,

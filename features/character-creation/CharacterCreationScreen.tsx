@@ -4,6 +4,7 @@ import CharacterAndStoryTab from './CharacterAndStoryTab';
 import WorldSetupTab from './WorldSetupTab';
 import StartingFactorsTab from './StartingFactorsTab';
 import { useToastStore } from '../../store/useToastStore';
+import { useGameStore } from '../../store/useGameStore';
 
 const CharacterCreationScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'character' | 'world' | 'factors'>('character');
@@ -12,6 +13,7 @@ const CharacterCreationScreen: React.FC = () => {
         characterData, worldData, startingFactors,
         reset, importFullData,
     } = useCharacterCreationStore();
+    const { showMainMenu } = useGameStore();
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +42,10 @@ const CharacterCreationScreen: React.FC = () => {
         if (!isSubmitDisabled) {
             startGame();
         }
+    };
+
+    const handleBack = () => {
+        showMainMenu();
     };
 
     const handleExport = () => {
@@ -124,16 +130,16 @@ const CharacterCreationScreen: React.FC = () => {
                     aria-label="Nhập file dữ liệu"
                 />
                 <button
-                    onClick={handleImportClick}
-                    className="w-full px-4 py-2 text-base font-semibold border-2 rounded-lg transition-all duration-300 transform focus:outline-none focus:ring-4 bg-blue-600/20 border-blue-400 text-blue-300 hover:bg-blue-600/30 hover:scale-105 focus:ring-blue-500/50"
-                >
-                    Nhập Dữ Liệu
-                </button>
-                <button
                     onClick={handleExport}
                     className="w-full px-4 py-2 text-base font-semibold border-2 rounded-lg transition-all duration-300 transform focus:outline-none focus:ring-4 bg-green-600/20 border-green-400 text-green-300 hover:bg-green-600/30 hover:scale-105 focus:ring-green-500/50"
                 >
                     Xuất Dữ Liệu
+                </button>
+                <button
+                    onClick={handleImportClick}
+                    className="w-full px-4 py-2 text-base font-semibold border-2 rounded-lg transition-all duration-300 transform focus:outline-none focus:ring-4 bg-blue-600/20 border-blue-400 text-blue-300 hover:bg-blue-600/30 hover:scale-105 focus:ring-blue-500/50"
+                >
+                    Nhập Dữ Liệu
                 </button>
             </div>
 
@@ -174,7 +180,11 @@ const CharacterCreationScreen: React.FC = () => {
             </div>
 
 
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <button onClick={handleBack}
+                    className="w-full sm:w-auto px-8 py-4 text-xl font-semibold border-2 rounded-lg transition-all duration-300 transform focus:outline-none focus:ring-4 bg-gray-600/20 border-gray-500 text-gray-300 hover:bg-gray-600/30 hover:scale-105 focus:ring-gray-400/50">
+                    Quay Về
+                </button>
                 <button onClick={handleSubmit} disabled={isSubmitDisabled}
                     className="w-full px-8 py-4 text-xl font-semibold border-2 rounded-lg transition-all duration-300 transform focus:outline-none focus:ring-4 bg-yellow-400/20 border-yellow-400 text-yellow-300 hover:bg-yellow-400/30 hover:scale-105 focus:ring-yellow-500/50 disabled:bg-gray-800/20 disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed">
                     {isStartingGame ? "Đang Tạo Thế Giới..." : isGeneratingWorld ? "AI Đang Sáng Tạo..." : "Bắt Đầu Hành Trình"}

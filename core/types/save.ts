@@ -7,6 +7,15 @@ import type { VectorStore } from "./rag";
 // =================================================================
 // STATE MANAGEMENT & SAVE GAME STRUCTURES
 // =================================================================
+
+/** Đại diện cho một trang/hồi trong nhật ký game */
+export interface GamePage {
+    id: number;
+    logs: GameLogEntry[];
+    summary: string | null; // Tóm tắt chi tiết của trang, ban đầu là null
+    playerStateStart: PlayerState | null; // Trạng thái người chơi khi bắt đầu trang
+}
+
 export interface PlayerRelatedState {
     player: PlayerState;
     quests: Quest[];
@@ -27,13 +36,12 @@ export interface WorldState {
 }
 
 export interface GameSessionState {
-    logs: GameLogEntry[];
+    pages: GamePage[];
+    currentPageIndex: number;
     isLoading: boolean;
     isAwaitingPlayerAction: boolean;
     gameState: GameScreenState;
     currentChoices: Choice[];
-    storySummaries: string[];
-    turnCounter: number;
     currentTurnNotifications: string[];
     saveOrigin: GameScreenState | null;
     playthroughId: string;

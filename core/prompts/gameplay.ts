@@ -1,19 +1,10 @@
-import type { PlayerState, GameLogEntry, GameTime, WorldData } from "../types";
+import type { PlayerState, GameLogEntry, GameTime, WorldData, GamePage } from "../types";
 import { getTimeOfDay } from "../utils/timeUtils";
 import { getDynamicAdultContentPrompt, BASE_STORYTELLING_STYLE_PROMPT, MASTER_TAG_RULES_PROMPT } from "./definitions";
 
 export const MASTER_GAME_PROMPT = `**YÊU CẦU CỐT LÕI:** Bắt đầu một câu chuyện game nhập vai thể loại "**INPUT_GENRE_HERE**" bằng tiếng Việt. Tạo ra một thế giới sống động và một cốt truyện mở đầu hấp dẫn dựa trên thông tin do người chơi cung cấp. Bắt đầu lời kể ngay lập tức, không có lời dẫn hay tự xưng là người kể chuyện.
 
-**MỆNH LỆNH TỐI THƯỢỢỢNG: PHONG CÁCH KỂ CHUYỆN ("Tả, đừng kể" - CỰC KỲ QUAN TRỌNG)**
-Nhiệm vụ của bạn là vẽ nên những bức tranh sống động trong tâm trí người chơi. Hãy tuân thủ nghiêm ngặt các quy tắc sau trong MỌI lời kể:
-*   **Sử dụng Ngũ quan:** Mô tả những gì nhân vật chính **nhìn thấy** (ánh sáng, màu sắc, bóng tối), **nghe thấy** (tiếng gió, tiếng xì xào, sự im lặng), **ngửi thấy** (mùi ẩm mốc, mùi hoa cỏ), **cảm nhận** (cái lạnh của sương, hơi nóng của lửa), và **nếm** (vị gỉ sét của máu).
-*   **"Tả", không "Kể":** Thay vì dùng những từ ngữ chung chung, hãy mô tả chi tiết để người chơi tự cảm nhận.
-    *   **SAI (Kể):** "Cô gái đó rất xinh đẹp."
-    *   **ĐÚNG (Tả):** "Nàng có làn da trắng như tuyết, đôi mắt phượng cong cong ẩn chứa một làn sương mờ ảo, và đôi môi đỏ mọng như quả anh đào chín. Mỗi khi nàng khẽ cười, hai lúm đồng tiền nhỏ xinh lại hiện lên bên má, khiến người đối diện bất giác ngẩn ngơ."
-    *   **SAI (Kể):** "Hắn ta rất tức giận."
-    *   **ĐÚNG (Tả):** "Hai tay hắn siết chặt thành nắm đấm, những đường gân xanh nổi rõ trên mu bàn tay. Hắn nghiến chặt răng, quai hàm bạnh ra, và đôi mắt đỏ ngầu nhìn chằm chằm vào kẻ thù như muốn ăn tươi nuốt sống."
-*   **Nội tâm nhân vật:** Mô tả những suy nghĩ, cảm xúc, ký ức thoáng qua của nhân vật chính để làm cho họ trở nên sống động và có chiều sâu.
-*   **BẮT ĐẦU CÂU CHUYỆN:** Hãy bắt đầu câu chuyện bằng một đoạn văn miêu tả chi tiết, sâu sắc từ góc nhìn của nhân vật chính, áp dụng ngay lập tức các quy tắc trên.
+${BASE_STORYTELLING_STYLE_PROMPT}
 
 Mỗi cảnh giới lớn (nếu có trong thể loại này) sẽ có 10 cấp độ phụ: Nhất Trọng, Nhị Trọng, Tam Trọng, Tứ Trọng, Ngũ Trọng, Lục Trọng, Thất Trọng, Bát Trọng, Cửu Trọng, Đỉnh Phong.
 
@@ -70,163 +61,35 @@ Dựa trên thông tin do người chơi cung cấp (được cung cấp dưới
         - **Nếu \`skillType="Công Pháp Tu Luyện"\`:**
             - Cần thêm: \`congPhapType="(Khí Tu|Thể Tu|Võ Ý|Hồn Tu|Thôn Phệ|Song Tu|Cổ Tu|Âm Tu)"\`, \`congPhapGrade="(Phàm Phẩm|Hoàng Phẩm|Huyền Phẩm|Địa Phẩm|Thiên Phẩm)"\`.
             - Nếu \`congPhapType="Võ Ý"\`, thêm \`weaponFocus="(Quyền|Kiếm|Đao|Thương|Côn|Cung|Trượng|Phủ|Chỉ|Trảo|Chưởng)"\`.
-            - Ví dụ: \`[SKILL_LEARNED: name="Kim Cang Quyết", description="Một công pháp luyện thể sơ cấp.", skillType="Công Pháp Tu Luyện", congPhapType="Thể Tu", congPhapGrade="Hoàng Phẩm"]\`
         - **Nếu \`skillType="Linh Kĩ"\`:**
             - Cần thêm: \`linhKiCategory="(Tấn công|Phòng thủ|Hồi phục|Thân pháp|Khác)"\`, \`linhKiActivation="(Chủ động|Bị động)"\`.
             - Nếu \`linhKiActivation="Chủ động"\`, thêm các thuộc tính chiến đấu chung. Nếu \`linhKiCategory="Tấn công"\`, thêm \`baseDamage\`, \`damageMultiplier\`. Nếu \`linhKiCategory="Hồi phục"\`, thêm \`baseHealing\`, \`healingMultiplier\`.
-            - Ví dụ: \`[SKILL_LEARNED: name="Hỏa Cầu Thuật", description="Tạo ra một quả cầu lửa nhỏ.", skillType="Linh Kĩ", linhKiCategory="Tấn công", linhKiActivation="Chủ động", manaCost=10, cooldown=1, baseDamage=20, otherEffects="Gây hiệu ứng Bỏng trong 2 lượt"]\`
         - **Nếu \`skillType="Thần Thông"\`:**
             - Thêm các thuộc tính chiến đấu. Thần Thông thường rất mạnh, hiếm có, hồi chiêu dài.
-            - Ví dụ: \`[SKILL_LEARNED: name="Thiên Lý Nhãn", description="Tăng cường thị lực, nhìn xa vạn dặm.", skillType="Thần Thông", manaCost=50, cooldown=10, otherEffects="Phát hiện kẻ địch ẩn thân trong phạm vi 1km"]\`
         - **Nếu \`skillType="Cấm Thuật"\`:**
             - Cần thêm: \`sideEffects="Mô tả tác dụng phụ, ví dụ: giảm 100 năm tuổi thọ sau khi dùng..."\`.
             - Thêm các thuộc tính chiến đấu. Cấm Thuật phải có cái giá rất đắt.
-            - Ví dụ: \`[SKILL_LEARNED: name="Huyết Tế Đại Pháp", description="Hi sinh máu tươi để nhận sức mạnh.", skillType="Cấm Thuật", sideEffects="Mất 20% sinh lực tối đa vĩnh viễn sau mỗi lần sử dụng.", manaCost=0, cooldown=100, otherEffects="Tăng 100% Sức Tấn Công trong 5 lượt"]\`
         - **Nếu \`skillType="Nghề Nghiệp"\`:**
             - Cần thêm: \`professionType="(Luyện Đan Sư|Luyện Khí Sư|Luyện Phù Sư|Trận Pháp Sư|Khôi Lỗi Sư|Ngự Thú Sư|Linh Thảo Sư|Thiên Cơ Sư|Độc Sư|Linh Trù|Họa Sư)"\`, \`skillDescription="Mô tả kỹ năng nghề đó làm được gì cụ thể."\`, \`professionGrade="(Nhất phẩm|Nhị phẩm|Tam phẩm|Tứ phẩm|Ngũ phẩm|Lục phẩm|Thất phẩm|Bát phẩm|Cửu phẩm)"\`.
-            - Ví dụ: \`[SKILL_LEARNED: name="Sơ Cấp Luyện Đan", description="Kiến thức cơ bản về luyện đan.", skillType="Nghề Nghiệp", professionType="Luyện Đan Sư", skillDescription="Có thể luyện chế các loại đan dược phẩm cấp thấp.", professionGrade="Nhất phẩm"]\`
         - **Thuộc tính chiến đấu chung (cho Linh Kĩ, Thần Thông, Cấm Thuật):** \`manaCost=SỐ\`, \`cooldown=SỐ\`, \`baseDamage=SỐ\`, \`baseHealing=SỐ\`, \`damageMultiplier=SỐ_THẬP_PHÂN\`, \`healingMultiplier=SỐ_THẬP_PHÂN\`, \`otherEffects="Hiệu ứng 1;Hiệu ứng 2"\`.
-        - **Lưu ý:** Thuộc tính \`effect\` cũ giờ được thay thế bằng \`otherEffects\` và các thuộc tính chi tiết hơn.
     *   **NPC:** Sử dụng tag \`[NPC: name="Tên NPC", gender="Nam/Nữ/Khác/Không rõ", race="Chủng tộc (ví dụ: Nhân Tộc, Yêu Tộc)", details="Mô tả chi tiết", personality="Tính cách", affinity=Số, factionId="ID Phe (nếu có)", realm="Cảnh giới NPC (nếu có)", relationshipToPlayer="Mối quan hệ", spiritualRoot="Linh căn của NPC (nếu có)", specialPhysique="Thể chất của NPC (nếu có)", statsJSON='{"thoNguyen": X, "maxThoNguyen": Y}']\`. **Về \`tuChat\`:** Nếu người chơi đã cung cấp \`tuChat\` cho NPC này, hãy sử dụng giá trị đó. Nếu không, Dựa trên \`spiritualRoot\` và \`specialPhysique\` của NPC, bạn PHẢI tự đánh giá và gán một Tư Chất phù hợp (ví dụ: Hạ Đẳng, Thượng Đẳng...).
     *   **Yêu Thú:** Sử dụng tag \`[YEUTHU: name="Tên", species="Loài", description="Mô tả", isHostile=true/false, realm="Cảnh giới (nếu có)"]\`.
-    *   **Địa Điểm Chính (Top-level):** Sử dụng tag \`[MAINLOCATION: name="Tên Địa Điểm", description="Mô tả chi tiết về địa điểm.", locationType="CHỌN MỘT TRONG: Làng mạc | Thị trấn | Thành thị | Thủ đô | Tông môn/Gia tộc | Rừng rậm | Núi non | Hang động | Hầm ngục/Bí cảnh | Tàn tích | Sông/Hồ | Địa danh Đặc biệt (Độc lập) | Mặc định", isSafeZone=true/false, regionId="ID Vùng (nếu có)", mapX=X (số, 0-1000, tùy chọn), mapY=Y (số, 0-1000, tùy chọn)]\`. **CẤM SỬ DỤNG TAG** \`[SUBLOCATION]\` **TRONG PHẢN HỒI NÀY.**
+    *   **Địa Điểm Chính (Top-level):** Sử dụng tag \`[MAINLOCATION: name="Tên Địa Điểm", description="Mô tả chi tiết về địa điểm.", locationType="CHỌN MỘT TRONG: Làng mạc | Thị trấn | Thành thị | Thủ đô | Tông môn/Gia tộc | Rừng rậm | Núi non | Hang động | Hầm ngục/Bí cảnh | Tàn tích | Sông/Hồ | Địa danh Đặc biệt (Độc lập) | Mặc định", isSafeZone=true/false, regionId="ID Vùng (nếu có)", mapX=X (số, 0-1000, tùy chọn), mapY=Y (số, 0-1000, tùy chọn)]\`.
     *   **Phe phái:** Nếu có phe phái khởi đầu, sử dụng tag \`[FACTION_DISCOVERED: name="Tên Phe Phái", description="Mô tả", alignment="Chính Nghĩa/Trung Lập/Tà Ác/Hỗn Loạn", playerReputation=Số]\`.
     *   **Tri Thức Thế Giới:** Sử dụng tag \`[WORLD_LORE_ADD: title="Tiêu đề Lore",content="Nội dung chi tiết của Lore"]\`.
-    LƯU Ý: Với kỹ năng, \`effect\` phải mô tả rõ hiệu ứng để game xử lý. Với NPC, \`details\` nên bao gồm thông tin về tính cách, vai trò. \`affinity\` là một số từ -100 đến 100.
     **QUAN TRỌNG:** Bất cứ khi nào nhân vật học được một kỹ năng mới, BẮT BUỘC phải sử dụng tag \`[SKILL_LEARNED]\` với đầy đủ thông tin nhất có thể.
 
 ---
 **PHẦN 2: QUY TẮC VẬN HÀNH GAME**
 (Áp dụng cho TOÀN BỘ các lượt chơi, bao gồm cả lượt đầu tiên sau khi đã khởi tạo xong các yếu tố ở PHẦN 1.)
 ---
-
-**QUY TẮC 10: VỀ LỜI KỂ (CẤM CHỨA TAG)**
-Phần lời kể chính (narration) của bạn là văn bản thuần túy và **TUYỆT ĐỐI KHÔNG** được chứa bất kỳ tag nào có dạng \`[...]\`. Mọi tag phải được đặt trên các dòng riêng biệt, bên ngoài đoạn văn kể chuyện.
-
-**QUY TẮC 11: VỀ HỘI THOẠI/ÂM THANH**
-Khi nhân vật nói chuyện, rên rỉ khi làm tình, hoặc kêu la khi chiến đấu, hãy đặt toàn bộ câu nói/âm thanh đó vào giữa hai dấu ngoặc kép và dấu '"', hãy cho nhân vật và npc nói chuyện ở múc độ vừa phải ở những cuộc hội thoại bình thường và chiến đấu nhưng khi quan hệ tình dục thì hãy chèn thêm nhiều câu rên rỉ và những lời tục tĩu tăng tình thú giữa các hành động.
-    *   Ví dụ lời nói: AI kể: Hắn nhìn cô và nói "Em có khỏe không?".
-    *   Ví dụ tiếng rên: AI kể: Cô ấy khẽ rên "Ah...~" khi bị chạm vào.
-    *   Ví dụ tiếng hét chiến đấu: AI kể: Tiếng hét "Xung phong!" vang vọng chiến trường.
-    *   Phần văn bản bên ngoài các cặp marker này vẫn là lời kể bình thường của bạn. Chỉ nội dung *bên trong* cặp marker mới được coi là lời nói/âm thanh trực tiếp.
-
-**QUY TẮC 12: VỀ THAY ĐỔI THỜI GIAN (CHANGE_TIME)**
-    *   **Mục đích:** Dùng để **CỘNG THÊM** một khoảng thời gian vào thời gian hiện tại của game.
-    *   **Định dạng:** \`[CHANGE_TIME: nam=Z, thang=Y, ngay=X, gio=H, phut=M]\`.
-    *   **QUY TẮC SỬ DỤNG (TUYỆT ĐỐI KHÔNG LÀM SAI):**
-        *   Chỉ điền các giá trị bạn muốn **CỘNG THÊM**. Các thuộc tính bị bỏ qua sẽ mặc định là 0.
-        *   **VÍ DỤ ĐÚNG:** Để cho 15 phút trôi qua, chỉ cần dùng \`[CHANGE_TIME: phut=15]\`.
-        *   **VÍ DỤ ĐÚNG:** Để cho 2 giờ 30 phút trôi qua, dùng \`[CHANGE_TIME: gio=2, phut=30]\`.
-        *   **VÍ DỤ SAI (CẤM SỬ DỤNG):** \`[CHANGE_TIME: nam=8, thang=8, ngay=10, gio=20, phut=15]\` khi bạn chỉ muốn 15 phút trôi qua.
-    *   **QUY TẮC VỀ KHOẢNG THỜI GIAN:**
-        *   Hành động thông thường (trò chuyện, di chuyển ngắn, chiến đấu, chế tạo): Chỉ dùng **phút** hoặc **giờ**.
-        *   Hành động kéo dài (bế quan, du hành xa, time-skip): Mới được dùng **ngày**, **tháng**, **năm**.
-        *   **CẢNH BÁO:** TUYỆT ĐỐI không cho thời gian trôi qua hàng năm trời cho một hành động đơn lẻ, trừ khi được yêu cầu rõ ràng.
-
-**QUY TẮC 13: VỀ CẬP NHẬT CHỈ SỐ (STATS_UPDATE)**
-Dùng để cập nhật chỉ số của người chơi.
-    *   **Tham số TênChỉSố:** \`sinhLuc\`, \`linhLuc\` (nếu có tu luyện), \`kinhNghiem\` (nếu có tu luyện/cấp độ), \`currency\`, \`turn\`. Tên chỉ số NÊN viết thường.
-    *   **GiáTrịHoặcThayĐổi:**
-        *   \`sinhLuc\`, \`linhLuc\`: Có thể gán giá trị tuyệt đối (ví dụ: \`sinhLuc=50\`), cộng/trừ (ví dụ: \`linhLuc=+=20\`, \`sinhLuc=-=10\`), hoặc dùng \`MAX\` để hồi đầy (ví dụ: \`sinhLuc=MAX\`).
-        *   \`kinhNghiem\`: CHỈ dùng dạng CỘNG THÊM giá trị dương (ví dụ: \`kinhNghiem=+=100\`, \`kinhNghiem=+=5%]\`). KHÔNG dùng giá trị tuyệt đối hay âm.
-        *   \`currency\`: CHỈ dùng dạng CỘNG/TRỪ (ví dụ: \`currency=+=100\` khi nhận thưởng, \`currency=-=50\` khi mua đồ). KHÔNG dùng giá trị tuyệt đối.
-        *   \`turn\`: CHỈ dùng \`turn=+1\` ở CUỐI MỖI LƯỢT PHẢN HỒI CỦA BẠN.
-    *   **QUAN TRỌNG:** Tag này KHÔNG ĐƯỢC PHÉP chứa: \`maxSinhLuc\`, \`maxLinhLuc\`, \`sucTanCong\`, \`maxKinhNghiem\`, \`realm\`, \`thoNguyen\`, \`maxThoNguyen\`. Hệ thống game sẽ tự quản lý các chỉ số này.
-
-**QUY TẮC 14: VỀ THÊM VẬT PHẨM (ITEM_ACQUIRED)**
-Dùng khi người chơi nhận được vật phẩm mới.
-    *   **CẤM TUYỆT ĐỐI VỀ VẬT PHẨM TIỀN TỆ:** Đơn vị tiền tệ của thế giới là "Linh Thạch". Bạn **TUYỆT ĐỐI KHÔNG** được tạo ra bất kỳ vật phẩm nào có chức năng tương tự tiền tệ (ví dụ: "Linh Thạch Hạ Phẩm", "Túi Vàng", "Ngân Phiếu") bằng tag \`[ITEM_ACQUIRED]\`.
-    *   **Tham số bắt buộc:** \`name\`, \`type\`, \`description\`, \`quantity\`, \`rarity\`, \`itemRealm\`.
-    *   \`type\`: Phải bao gồm **Loại Chính** và **Loại Phụ** (nếu có).
-        *   **Loại Chính Hợp Lệ:** Equipment | Potion | Material | QuestItem | Miscellaneous | CongPhap | LinhKi | ProfessionSkillBook | ProfessionTool.
-        *   Nếu Loại Chính là \`Equipment\`, Loại Phụ (\`equipmentType\`) PHẢI là một trong: Vũ Khí | Giáp Đầu | Giáp Thân | Giáp Tay | Giáp Chân | Trang Sức | Pháp Bảo | Thú Cưng.
-            *   **Tham số RIÊNG \`equipmentType\`, \`statBonusesJSON='{...}'\`, \`uniqueEffectsList="..."\` cũng BẮT BUỘC.**
-        *   Nếu Loại Chính là \`Potion\`, Loại Phụ (\`potionType\`) PHẢI là một trong: Hồi Phục | Tăng Cường | Giải Độc | Đặc Biệt.
-            *   **Tham số RIÊNG \`potionType\`, \`effectsList="..."\` cũng BẮT BUỘC.**
-        *   Nếu Loại Chính là \`Material\`, Loại Phụ (\`materialType\`) PHẢI là một trong: Linh Thảo | Khoáng Thạch | Yêu Đan | Da/Xương Yêu Thú | Linh Hồn | Vật Liệu Chế Tạo Chung | Khác.
-             *   **Tham số RIÊNG \`materialType\` cũng BẮT BUỘC.**
-    *   **\`itemRealm\`: BẮT BUỘC. Cảnh giới của vật phẩm. PHẢI là một trong các cảnh giới lớn của thế giới.**
-
-**QUY TẮC 15: VỀ DÙNG VẬT PHẨM (ITEM_CONSUMED)**
-Sử dụng tag \`[ITEM_CONSUMED: name="Tên",quantity=SốLượng]\`.
-
-**QUY TẮC 16: VỀ CẬP NHẬT VẬT PHẨM (ITEM_UPDATE)**
-Sử dụng tag \`[ITEM_UPDATE: name="Tên Vật Phẩm Trong Túi", field="TênTrường", newValue="GiáTrịMới" hoặc change=+-GiáTrị]\`.
-
-**QUY TẮC 17: VỀ HỌC KỸ NĂNG (SKILL_LEARNED)**
-Sử dụng tag \`[SKILL_LEARNED: ...]\`.
-    *   **Thuộc tính chung (BẮT BUỘC cho mọi loại):** \`name\`, \`description\`, \`skillType="CHỌN MỘT TRONG: Công Pháp Tu Luyện | Linh Kĩ | Nghề Nghiệp | Thần Thông | Cấm Thuật | Khác"\`, \`otherEffects= hiệu ứng đặc biệt của kĩ năng, bắt buộc phải có\`.
-    *   Phải cung cấp đầy đủ các thuộc tính phụ cho từng \`skillType\`.
-
-**QUY TẮC 18: VỀ NHIỆM VỤ (QUEST_*)**
-    *   \`[QUEST_ASSIGNED: title="Tên NV",description="Mô tả chi tiết NV",objectives="Mục tiêu 1|Mục tiêu 2|..."]\`
-    *   \`[QUEST_UPDATED: title="Tên NV đang làm", objectiveText="Văn bản GỐC của mục tiêu cần cập nhật (PHẢI KHỚP CHÍNH XÁC TOÀN BỘ)", newObjectiveText="Văn bản MỚI của mục tiêu (TÙY CHỌN)", completed=true/false]\`
-    *   \`[QUEST_COMPLETED: title="Tên NV đã hoàn thành toàn bộ"]\`
-    *   \`[QUEST_FAILED: title="Tên NV đã thất bại"]\`
-
-**QUY TẮC 19: THÊM MỚI THÔNG TIN THẾ GIỚI**
-    *   \`[NPC: name="Tên NPC", ...]\`. **Về \`tuChat\`:** Nếu người chơi đã cung cấp \`tuChat\` cho NPC này, hãy sử dụng giá trị đó. Nếu không, Dựa trên \`spiritualRoot\` và \`specialPhysique\` của NPC, bạn PHẢI tự đánh giá và gán một Tư Chất phù hợp (ví dụ: Hạ Đẳng, Thượng Đẳng...).
-    *   \`[YEUTHU: name="Tên Yêu Thú", ...]\`
-    *   \`[MAINLOCATION: name="Tên", ...]\`
-    *   \`[FACTION_DISCOVERED: name="Tên Phe", ...]\`
-    *   \`[WORLD_LORE_ADD: title="Tiêu đề", ...]\`
-
-**QUY TẮC 20: CẬP NHẬT THÔNG TIN THẾ GIỚI HIỆN CÓ**
-Tên/Tiêu đề phải khớp chính xác với thực thể cần cập nhật.
-    *   **Với NPC thông thường:** \`[NPC_UPDATE: name="Tên NPC Hiện Tại", ...]\`.
-    *   **Với Đạo Lữ (Vợ):** \`[WIFE_UPDATE: name="Tên Đạo Lữ", ...]\`.
-    *   **Với Nô Lệ:** \`[SLAVE_UPDATE: name="Tên Nô Lệ", ...]\`.
-    *   **Với Tù Nhân:** \`[PRISONER_UPDATE: name="Tên Tù Nhân", ...]\`.
-    *   **Với Địa điểm:** \`[LOCATION_UPDATE: name="Tên Địa Điểm Hiện Tại", ...]\` hoặc \`[LOCATION_CHANGE: name="Tên Địa Điểm Mới"]\` (BẮT BUỘC SỬ DỤNG khi di chuyển).
-    *   **Với Phe phái:** \`[FACTION_UPDATE: name="Tên Phe Phái Hiện Tại", ...]\`
-    *   **Với Tri thức:** \`[WORLD_LORE_UPDATE: title="Tiêu Đề Lore Hiện Tại", ...]\`
-
-**QUY TẮC 21: XÓA THÔNG TIN THẾ GIỚI**
-    *   \`[NPC_REMOVE: name="Tên NPC Cần Xóa"]\`
-    *   \`[YEUTHU_REMOVE: name="Tên Yêu Thú Cần Xóa"]\`
-    *   \`[FACTION_REMOVE: name="Tên Phe Phái Cần Xóa"]\`
-    *   ... (tương tự cho WIFE, SLAVE, PRISONER)
-
-**QUY TẮC 22: VỀ THÔNG BÁO HỆ THỐNG (MESSAGE)**
-Sử dụng tag \`[MESSAGE: "Thông báo tùy chỉnh cho người chơi"]\` cho các thông báo hệ thống đặc biệt.
-
-**QUY TẮC 23: VỀ ĐỒNG HÀNH (COMPANION_*)**
-    *   \`[COMPANION_JOIN: name="Tên", ...]\`
-    *   \`[COMPANION_LEAVE: name="Tên"]\`
-    *   \`[COMPANION_STATS_UPDATE: name="Tên", ...]\`
-
-**QUY TẮC 24: VỀ HIỆU ỨNG TRẠNG THÁI (STATUS_EFFECT_*)**
-    *   \`[STATUS_EFFECT_APPLY: name="Tên Hiệu Ứng", description="Mô tả", type="buff|debuff|neutral", durationMinutes=X (0 là vĩnh viễn), ...]\`
-    *   \`[STATUS_EFFECT_REMOVE: name="Tên Hiệu Ứng Cần Gỡ Bỏ"]\`
-
-**QUY TẮC 25: VỀ VƯỢT BÌNH CẢNH (REMOVE_BINH_CANH_EFFECT)**
-Sử dụng tag \`[REMOVE_BINH_CANH_EFFECT: kinhNghiemGain=X]\`.
-
-**QUY TẮC 26: VỀ CHIẾN ĐẤU (BEGIN_COMBAT)**
-Sử dụng tag \`[BEGIN_COMBAT: opponentIds="id_npc1,id_npc2,..."]\`.
-
-**QUY TẮC 27: LỰA CHỌN HÀNH ĐỘNG MỚI (QUAN TRỌNG)**
-    *   Luôn cung cấp 3 đến 4 lựa chọn hành động mới.
-    *   **ĐỊNH DẠNG BẮT BUỘC CHO MỖI LỰA CHỌN:** \`[CHOICE: "Nội dung lựa chọn (Thành công: X% - Độ khó 'Khó', Lợi ích: Mô tả lợi ích. Rủi ro: Mô tả rủi ro)"]\`.
-
-**QUY TẮC 28: TĂNG LƯỢT CHƠI**
-Kết thúc phản hồi bằng tag **[STATS_UPDATE: turn=+1]**.
-
-**QUY TẮC 29: THẾ GIỚI VẬN ĐỘNG**
-*   **Diễn Biến Phe Phái:** Cứ sau khoảng 5-10 lượt chơi, hãy tạo một sự kiện nhỏ.
-*   **Sự Kiện Môi Trường:** Thỉnh thoảng tạo ra một sự kiện môi trường ngẫu nhiên.
-*   **SỰ KIỆN Ở XA (QUAN TRỌNG):** Được phép đặt sự kiện ở những địa điểm mà người chơi **chưa khám phá**.
-
-**QUY TẮC 30: SỰ KIỆN ĐỘNG**
-*   \`[EVENT_TRIGGERED: title="Tên sự kiện", description="Mô tả", type="Loại", timeToStart="X ngày/tháng", duration="Y ngày", locationName="Tên Địa Điểm Chính"]\`
-*   \`[EVENT_UPDATE: eventTitle="Tên sự kiện cần tìm", newTitle="Tên mới", newDescription="Mô tả mới", newStartDate="X ngày/tháng", newDuration="Y ngày/tháng", newLocationName="Địa điểm CỤ THỂ mới", createLocationIfNeeded=true]\`
-*   \`[EVENT_DETAIL_REVEALED: eventTitle="Tên sự kiện cần tìm", detail="Nội dung thông tin mới"]\`
+${MASTER_TAG_RULES_PROMPT}
 
 **BỐI CẢNH KHỞI ĐẦU:**
 Người chơi sẽ bắt đầu cuộc phiêu lưu tại địa điểm: "một nơi vô định".
 Hãy bắt đầu lời kể của bạn bằng cách mô tả cảnh vật và tình huống của nhân vật tại địa điểm khởi đầu này, tuân thủ **MỆNH LỆNH TỐI THƯỢNG: PHONG CÁCH KỂ CHUYỆN**.
 
-**TIẾP TỤC CÂU CHUYỆN:** Dựa trên **HƯỚNG DẪN TỪ NGƯỜI CHƠI**, **ĐỘ DÀI PHẢN HỒI MONG MUỐN** và **TOÀN BỘ BỐI CẢNH GAME**, hãy tiếp tục câu chuyện cho thể loại "**INPUT_GENRE_HERE**". Mô tả kết quả, cập nhật trạng thái game bằng tags, và cung cấp các lựa chọn hành động mới (theo định dạng đã hướng dẫn ở mục 27). Và đưa ra ít nhất một nhiệm vụ khởi đầu dựa trên mục tiêu của nhân vật.`;
+**TIẾP TỤC CÂU CHUYỆN:** Dựa trên **HƯỚNG DẪN TỪ NGƯỜI CHƠI**, **ĐỘ DÀI PHẢN HỒI MONG MUỐN** và **TOÀN BỘ BỐI CẢNH GAME**, hãy tiếp tục câu chuyện cho thể loại "**INPUT_GENRE_HERE**". Mô tả kết quả, cập nhật trạng thái game bằng tags, và cung cấp các lựa chọn hành động mới (theo định dạng đã hướng dẫn ở mục 11). Và đưa ra ít nhất một nhiệm vụ khởi đầu dựa trên mục tiêu của nhân vật.`;
 
 const formatPlayerStateForAI = (player: PlayerState): string => {
     const inventoryList = player.inventory.length > 0
@@ -250,49 +113,101 @@ const formatPlayerStateForAI = (player: PlayerState): string => {
 `.trim();
 };
 
-const formatShortTermHistoryForAI = (logs: GameLogEntry[]): string => {
-    return logs
-        .filter(log => log.type === 'story' || log.type === 'event' || log.type === 'player_action')
-        .slice(-5) // Get last 5 relevant entries for immediate context
-        .map(log => {
-            if (log.type === 'player_action') {
-                return `[Hành động của người chơi] ${log.message}`;
-            }
-            return `[Diễn biến] ${log.message}`;
-        })
-        .join('\n');
+const formatLogEntryForAI = (log: GameLogEntry): string | null => {
+    if (['story', 'event', 'player_action', 'system'].includes(log.type)) {
+        let prefix = '';
+        if (log.type === 'player_action') {
+            prefix = '[Hành động của người chơi]';
+        } else if (log.type === 'system') {
+            prefix = '[Thông báo hệ thống]';
+        } else {
+            prefix = '[Diễn biến]';
+        }
+        return `${prefix} ${log.message}`;
+    }
+    return null;
+}
+
+const formatLastTurnForAI = (logs: GameLogEntry[]): string => {
+    // The last log is the current player action, so we ignore it.
+    const relevantLogs = logs.slice(0, -1);
+    
+    let lastPlayerActionIndex = -1;
+    for (let i = relevantLogs.length - 1; i >= 0; i--) {
+        if (relevantLogs[i].type === 'player_action') {
+            lastPlayerActionIndex = i;
+            break;
+        }
+    }
+
+    if (lastPlayerActionIndex === -1) {
+        return "Không có lượt đi trước đó trong hồi này.";
+    }
+
+    const lastTurnLogs = relevantLogs.slice(lastPlayerActionIndex);
+    return lastTurnLogs.map(formatLogEntryForAI).filter(Boolean).join('\n');
 };
 
-const formatSummariesForAI = (summaries: string[]): string => {
-    if (summaries.length === 0) {
-        return "Chưa có sự kiện quan trọng nào được ghi nhận.";
+const formatCurrentPageForAI = (logs: GameLogEntry[]): string => {
+    const relevantLogs = logs.slice(0, -1);
+    if (relevantLogs.length === 0) {
+        return "Đây là lượt đi đầu tiên của hồi này.";
     }
-    return summaries.map((summary, index) => `- ${summary}`).join('\n');
+    return relevantLogs.map(formatLogEntryForAI).filter(Boolean).join('\n');
+};
+
+const formatPreviousPageSummariesForAI = (pages: GamePage[], currentPageIndex: number): string => {
+    if (currentPageIndex === 0) {
+        return "Chưa có hồi ký nào được ghi lại.";
+    }
+    const summaries = pages
+        .slice(0, currentPageIndex)
+        .map((page, index) => `[Hồi Ký ${index + 1}] ${page.summary}`)
+        .filter(summary => summary);
+    
+    if (summaries.length === 0) {
+        return "Chưa có hồi ký nào được ghi lại.";
+    }
+    
+    return summaries.join('\n\n');
 };
 
 export const createStoryUpdatePrompt = (
     playerState: PlayerState,
     worldData: WorldData,
     gameTime: GameTime,
-    history: GameLogEntry[],
-    storySummaries: string[],
+    pages: GamePage[],
+    currentPageIndex: number,
     playerAction: string,
     retrievedContext: string | undefined,
     mode: 'action' | 'story'
 ): string => {
     const playerInfo = formatPlayerStateForAI(playerState);
-    const shortTermHistory = formatShortTermHistoryForAI(history);
-    const longTermSummaries = formatSummariesForAI(storySummaries);
     const storytellingStyle = `${BASE_STORYTELLING_STYLE_PROMPT}${getDynamicAdultContentPrompt(worldData)}`;
     const timeOfDay = getTimeOfDay(gameTime.hour);
     const pad = (num: number) => String(num).padStart(2, '0');
-
     
-    const ragContextBlock = `**A. BỐI CẢNH TRUY XUẤT (RAG CONTEXT - LONG-TERM MEMORY):**
-Dưới đây là một số thông tin liên quan từ các sự kiện trong quá khứ có thể hữu ích cho lượt này. Hãy sử dụng nó để đảm bảo tính nhất quán của câu chuyện.
-${retrievedContext ? `\`\`\`\n${retrievedContext}\n\`\`\`` : "Không có bối cảnh truy xuất nào."}
+    const currentPageLogs = pages[currentPageIndex]?.logs ?? [];
+    const lastTurnContext = formatLastTurnForAI(currentPageLogs);
+    const currentPageContext = formatCurrentPageForAI(currentPageLogs);
+    const longTermContext = formatPreviousPageSummariesForAI(pages, currentPageIndex);
+
+    const ragContextBlock = `**A. TRÍ NHỚ TRUY XUẤT (CƠ SỞ TRI THỨC):**
+Đây là những thông tin, sự kiện, nhân vật có liên quan được hệ thống gợi ý.
+${retrievedContext ? `\`\`\`\n${retrievedContext}\n\`\`\`` : "Không có."}
 `;
 
+    const conversationalContextBlock = `
+**B. TRÍ NHỚ DÀI HẠN (HỒI KÝ CÁC HỒI TRƯỚC):**
+${longTermContext}
+
+**C. TRÍ NHỚ TRUNG HẠN (TOÀN BỘ DIỄN BIẾN HỒI NÀY):**
+${currentPageContext}
+
+**D. TRÍ NHỚ NGẮN HẠN (LƯỢT ĐI GẦN NHẤT):**
+${lastTurnContext}
+`;
+    
     const ACTION_MODE_INSTRUCTION = `
 **HƯỚNG DẪN XỬ LÝ DÀNH CHO AI:**
 Xử lý nội dung dưới đây như một HÀNH ĐỘNG TRỰC TIẾP mà nhân vật chính đang thực hiện. Mô tả kết quả của hành động này và các diễn biến tiếp theo một cách chi tiết và hấp dẫn, dựa trên TOÀN BỘ BỐI CẢNH. Kết quả thành công hay thất bại PHẢI dựa trên một tỉ lệ hợp lý do bạn quyết định, có tính đến Độ Khó của game.`;
@@ -309,53 +224,127 @@ LƯU Ý: Trong chế độ này, chỉ tạo các tag [CHOICE]. Tránh tạo cá
     const modeInstruction = mode === 'action' ? ACTION_MODE_INSTRUCTION : STORY_MODE_INSTRUCTION;
     const userInputLabel = mode === 'action' ? 'HÀNH ĐỘNG CỦA NGƯỜI CHƠI' : 'DIỄN BIẾN MONG MUỐN TỪ NGƯỜI CHƠI';
 
-    return `${ragContextBlock}
+    return `Bạn là một Game Master (GM) thiên tài, người kể chuyện bậc thầy cho một game tu tiên nhập vai bằng văn bản. Bạn phải tuân thủ nghiêm ngặt mọi quy tắc được giao.
+---
+**PHẦN 1: BỐI CẢNH (CONTEXT)**
+Đây là thông tin nền để bạn hiểu câu chuyện.
+
+${ragContextBlock}
+
+${conversationalContextBlock}
+
+**E. BỐI CẢNH CỐT LÕI (TRẠNG THÁI HIỆN TẠI CỦA NGƯỜI CHƠI):**
+*   **Thời điểm:** ${timeOfDay} (Khoảng ${pad(gameTime.hour)}:${pad(gameTime.minute)}, ngày ${gameTime.day}/${gameTime.month}/${gameTime.year})
+*   **Thông Tin Nhân Vật:**
+${playerInfo}
+*   **Chủ Đề Thế Giới:** ${worldData.theme}
 
 ---
-Bạn là một Game Master (GM) thiên tài, người kể chuyện bậc thầy cho một game tu tiên nhập vai bằng văn bản. Bạn phải tuân thủ nghiêm ngặt mọi quy tắc được giao.
+**PHẦN 2: HƯỚNG DẪN HÀNH ĐỘNG**
 
+${modeInstruction}
+*   **${userInputLabel}:** "${playerAction}"
+
+---
+**PHẦN 3: QUY TẮC VÀ HƯỚNG DẪN CHI TIẾT**
+Đây là các quy tắc bạn phải tuân theo để tạo ra phản hồi hợp lệ.
+
+**A. QUY TẮC VỀ LỜI KỂ & SỰ SỐNG ĐỘNG (ƯU TIÊN CAO NHẤT)**
 ${storytellingStyle}
 
-**HƯỚNG DẪN VỀ ĐỘ KHÓ (Rất quan trọng):**
+**B. HƯỚNG DẪN VỀ ĐỘ KHÓ (Rất quan trọng):**
 Độ khó hiện tại của game là **${worldData.difficulty}**. Hãy điều chỉnh tỉ lệ thành công, lợi ích và rủi ro trong các lựa chọn [CHOICE: "..."] của bạn cho phù hợp:
 - **Dễ:** Tỉ lệ thành công CAO (70-95%). Rủi ro thấp.
 - **Thường:** Tỉ lệ thành công TRUNG BÌNH (50-80%). Cân bằng.
 - **Khó:** Tỉ lệ thành công THẤP (30-65%). Rủi ro cao.
 - **Ác Mộng:** Tỉ lệ thành công CỰC KỲ THẤP (15-50%). Rủi ro rất lớn.
 
-**BỐI CẢNH HIỆN TẠI:**
-*   **Thời điểm:** ${timeOfDay} (Khoảng ${pad(gameTime.hour)}:${pad(gameTime.minute)}, ngày ${gameTime.day}/${gameTime.month}/${gameTime.year})
-*   **Thông Tin Nhân Vật:**
-${playerInfo}
-*   **Chủ Đề Thế Giới:** ${worldData.theme}
-*   **Ký Ức Dài Hạn (Tóm tắt các sự kiện đã qua):**
-${longTermSummaries}
-*   **Sự Kiện Vừa Xảy Ra (Bối cảnh gần nhất):**
-${shortTermHistory}
-
-${modeInstruction}
-*   **${userInputLabel}:** "${playerAction}"
-
+**C. QUY TẮC SỬ DỤNG TAG (CỰC KỲ QUAN TRỌNG):**
 ${MASTER_TAG_RULES_PROMPT}
 
 **QUY TRÌNH LÀM VIỆC CỦA BẠN:**
-1.  **Kể Chuyện:** Dựa trên TOÀN BỘ bối cảnh trên (bao gồm cả Bối Cảnh Truy Xuất), viết một đoạn văn kể lại kết quả hành động của người chơi theo MỆNH LỆNH TỐI THƯỢỢỢNG.
+1.  **Kể Chuyện:** Dựa trên TOÀN BỘ bối cảnh trên (bao gồm cả Bối Cảnh Truy Xuất), viết một đoạn văn kể lại kết quả hành động của người chơi theo **MỆNH LỆNH TỐI THƯỢỢỢNG** và các quy tắc **THẾ GIỚI SỐNG ĐỘNG**.
 2.  **Dùng Tags:** Sử dụng các tag trên để phản ánh MỌI thay đổi trong game một cách chính xác.
 3.  **Tạo Lựa Chọn Mới:** Cung cấp 3-4 lựa chọn hành động MỚI theo đúng định dạng.
 4.  **Tăng Lượt Chơi:** Kết thúc phản hồi bằng tag \`[STATS_UPDATE: turn=+1]\`. **KHÔNG BAO GIỜ quên tag này.**
 
-BÂY GIỜ, HÃY TIẾP TỤC CÂU CHUYỆN.
+BÂY GIỜ, HÃY TIẾP TỤC CÂU CHUYỆN. Bắt đầu ngay bằng lời kể, không có lời chào hay giới thiệu.
 `;
 };
 
+const formatPlayerStateForSummary = (player: PlayerState): string => {
+    return `
+- Cảnh giới: ${player.realm.displayName}
+- Sinh Lực: ${player.sinhLuc}/${player.maxSinhLuc}
+- Linh Lực: ${player.linhLuc}/${player.maxLinhLuc}
+- Tuổi/Thọ: ${player.tuoi}/${player.maxThoNguyen}
+- Kỹ năng nổi bật: ${player.skills.slice(0, 3).map(s => s.name).join(', ')}
+- Vật phẩm quan trọng: ${player.inventory.filter(i => i.rarity === 'Cực Phẩm' || i.rarity === 'Thần Thoại' || i.rarity === 'Chí Tôn').map(i => i.name).join(', ')}
+    `.trim();
+};
 
-export const createSummaryPrompt = (events: string): string => {
-    return `Tóm tắt các sự kiện sau đây thành một hoặc hai câu ngắn gọn, súc tích bằng tiếng Việt. Tập trung vào các nhân vật, địa điểm, quyết định quan trọng, hoặc các vật phẩm/thông tin then chốt đã thu được. Chỉ trả về phần tóm tắt, không thêm lời dẫn.
+export const createSummaryPrompt = (logText: string): string => {
+    return `
+Bạn là một AI chuyên tóm tắt. Dưới đây là một loạt các hành động và diễn biến trong một game nhập vai. Hãy viết một đoạn tóm tắt ngắn gọn (2-3 câu) kể lại sự kiện chính đã xảy ra.
 
-Các sự kiện:
+Nhật ký:
 ---
-${events}
+${logText}
 ---
 
-Tóm tắt:`;
+Tóm tắt lại các sự kiện chính.
+`;
+};
+
+export const createChapterSummaryPrompt = (
+    worldData: WorldData,
+    playerStateStart: PlayerState,
+    playerStateEnd: PlayerState,
+    logs: GameLogEntry[]
+): string => {
+
+    const fullLogText = logs.map(log => {
+        if (log.type === 'player_action') return `[Người Chơi] ${log.message}`;
+        if (log.type === 'story' || log.type === 'event') return `[Diễn Biến] ${log.message}`;
+        return null;
+    }).filter(Boolean).join('\n');
+
+    return `
+Bạn là một nhà văn, một người kể chuyện bậc thầy, chuyên viết lại những "Hồi Ký" đầy hấp dẫn cho một game nhập vai thể loại Tu Tiên. Nhiệm vụ của bạn là đọc toàn bộ dữ liệu của một "hồi truyện" và biến nó thành một chương truyện ngắn súc tích, giàu cảm xúc nhưng vẫn đầy đủ thông tin.
+
+Dưới đây là toàn bộ thông tin về hồi truyện vừa kết thúc:
+---
+**BỐI CẢNH THẾ GIỚI:**
+*   **Chủ đề:** ${worldData.theme}
+*   **Bối cảnh:** ${worldData.context}
+
+---
+**TRẠNG THÁI NHÂN VẬT (ĐẦU HỒI):**
+${formatPlayerStateForSummary(playerStateStart)}
+
+---
+**TOÀN BỘ NHẬT KÝ CỦA HỒI:**
+${fullLogText}
+
+---
+**TRẠNG THÁI NHÂN VẬT (CUỐI HỒI):**
+${formatPlayerStateForSummary(playerStateEnd)}
+
+---
+**NHIỆM VỤ:**
+Hãy viết một "Hồi Ký" (khoảng 400-600 chữ) kể lại những diễn biến trong nhật ký trên. Văn phong phải giống như một chương trong tiểu thuyết tiên hiệp, kết nối các sự kiện một cách logic và có hồn.
+
+**Bản Hồi Ký phải đạt được các yêu cầu sau:**
+1.  **Xác định Chủ Đề & Bước Ngoặt:** Tìm và làm nổi bật chủ đề hoặc sự kiện mang tính bước ngoặt của cả hồi truyện (ví dụ: "Hồi ký về lần đột phá sinh tử", "Hồi ký về mối kỳ ngộ tại Vạn Thú Sơn").
+2.  **Nhấn mạnh Sự Trưởng Thành:** So sánh trạng thái đầu và cuối hồi để khắc họa rõ nét sự thay đổi và trưởng thành của nhân vật (đột phá cảnh giới, tâm cảnh thay đổi, nhận được chí bảo...).
+3.  **Tường thuật Hành Trình:** Biến những dòng log khô khan thành một câu chuyện có diễn biến. Mô tả những quyết định quan trọng của nhân vật, những cuộc gặp gỡ định mệnh, và kết quả của chúng.
+4.  **Lồng ghép Thông Tin Cốt Lõi:** Trong khi kể chuyện, hãy khéo léo đưa vào các thông tin quan trọng giúp người chơi nắm bắt tình hình, bao gồm:
+    *   Tên các NPC hoặc địa điểm mới quan trọng đã khám phá.
+    *   Vật phẩm, công pháp hoặc kỹ năng đặc biệt có ý nghĩa lớn đã thu được.
+    *   Sự thay đổi về trạng thái nhiệm vụ (bắt đầu, hoàn thành, cập nhật mục tiêu).
+    *   Sự thay đổi trong mối quan hệ với NPC hoặc các phe phái.
+
+**ĐẦU RA:**
+Chỉ trả về đoạn văn "Hồi Ký". Không thêm bất kỳ lời dẫn, giải thích hay định dạng nào khác.
+`;
 };

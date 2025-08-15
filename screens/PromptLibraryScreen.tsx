@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import Accordion from '../components/ui/Accordion';
 import Button from '../components/ui/Button';
-import { WorldData, CharacterCreationData, StartingFactors, Talent, PlayerState, GameLogEntry, GameTime } from '../core/types';
+import { WorldData, CharacterCreationData, StartingFactors, Talent, PlayerState, GameLogEntry, GameTime, GamePage } from '../core/types';
 import { 
     createWorldGenerationPrompt, 
     INITIAL_TALENTS_PROMPT,
@@ -98,6 +98,13 @@ const MOCK_HISTORY: GameLogEntry[] = [
     {id: 3, type: 'story', message: 'Bên trong hang động tối tăm và ẩm ướt, bạn nghe thấy tiếng gầm gừ nhẹ. Một con yêu lang với đôi mắt đỏ ngầu đang nhìn bạn chằm chằm.'}
 ];
 
+const MOCK_PAGES: GamePage[] = [{
+    id: 1,
+    logs: MOCK_HISTORY,
+    summary: 'Người chơi phát hiện và tiến vào một hang động, đối mặt với một con yêu lang.',
+    playerStateStart: MOCK_PLAYER_STATE,
+}];
+
 const MOCK_SUMMARY_EVENTS = `[Hành động] Tiến vào trong hang động
 [Diễn biến] Bên trong hang động tối tăm và ẩm ướt, bạn nghe thấy tiếng gầm gừ nhẹ. Một con yêu lang với đôi mắt đỏ ngầu đang nhìn bạn chằm chằm.
 [Hành động] Rút kiếm ra, cẩn thận đối mặt với con yêu lang.
@@ -133,7 +140,7 @@ const PROMPTS_TO_DISPLAY = [
     },
     {
         title: "Lời Nhắc Xử Lý Hành Động (Vai Trò GM)",
-        content: createStoryUpdatePrompt(MOCK_PLAYER_STATE, MOCK_WORLD_DATA, MOCK_GAME_TIME, MOCK_HISTORY, [], "Rút kiếm ra, cẩn thận đối mặt với con yêu lang.", undefined, 'action')
+        content: createStoryUpdatePrompt(MOCK_PLAYER_STATE, MOCK_WORLD_DATA, MOCK_GAME_TIME, MOCK_PAGES, 0, "Rút kiếm ra, cẩn thận đối mặt với con yêu lang.", undefined, 'action')
     },
     {
         title: "Lời Nhắc Tóm Tắt Ký Ức",
