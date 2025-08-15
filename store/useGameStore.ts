@@ -1,5 +1,3 @@
-
-
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import {
@@ -7,13 +5,13 @@ import {
     WorldData, StartingFactors, RealmState, Choice, GameTime, AnyItem,
     AnySkill, Quest, StatusEffect, ParsedStoryUpdate, Wife, Slave, Prisoner,
     WorldEvent, AnyCharacter, Companion, StatsUpdate, TimeUpdate, QuestUpdatePayload, EntityUpdatePayload, SpecialNPCUpdatePayload, CompanionUpdatePayload, WorldEventUpdatePayload, WorldEventDetailPayload, NPC, Beast, Lore, Faction, StartingFactorItem,
-    PlayerRelatedState, WorldState, GameSessionState, SaveGame, VectorEntityType, VectorStore, ParsedInitialGameData
+    PlayerRelatedState, WorldState, GameSessionState, SaveGame, VectorEntityType, VectorStore, ParsedInitialGameData, VectorMetadata
 } from '../core/types';
 import { getStoryUpdate, generateSummary } from '../core/services/geminiService';
 import { parseStoryUpdate } from '../core/services/storyUpdateParser';
 import { useToastStore } from './useToastStore';
 import { parseRealmString, calculateMaxThoNguyen } from '../core/utils/realmUtils';
-import { calculateEventStartDate, MINUTES_IN_HOUR, HOURS_IN_DAY, DAYS_IN_MONTH, MONTHS_IN_YEAR, gameTimeToTotalMinutes, formatTimeDifference } from '../core/utils/timeUtils';
+import { calculateEventStartDate, gameTimeToTotalMinutes, formatTimeDifference, totalMinutesToGameTime, MINUTES_IN_HOUR, MINUTES_IN_DAY, MINUTES_IN_MONTH, MINUTES_IN_YEAR } from '../core/utils/timeUtils';
 import * as saveLoadService from '../core/services/saveLoadService';
 import * as RAG from '../core/rag';
 import { generateEmbeddings } from '../core/services/embeddingService';
@@ -354,7 +352,8 @@ interface WorldActions {
     addWorldEvent: (event: WorldEvent) => void;
     updateWorldEvent: (payload: WorldEventUpdatePayload) => void;
     addEventDetail: (payload: WorldEventDetailPayload) => void;
-    updateRagVectorStore: (updates: { entity: any, type: VectorEntityType }[]) => Promise<void>;
+    batchUpdateRagVectors: (updates: { metadata: RAG.VectorMetadata, vector: number[] }[]) => void;
+    removeRagVectorsByIds: (ids: string[]) => void;
 }
 
 const useWorldStore = create(immer<WorldState & WorldActions>((set, get) => ({
@@ -373,27 +372,18 @@ const useWorldStore = create(immer<WorldState & WorldActions>((set, get) => ({
     },
     advanceTime: (timeUpdate) => {
         set(state => {
-            state.gameTime.minute += timeUpdate.phut ?? 0;
-            if (state.gameTime.minute >= MINUTES_IN_HOUR) {
-                state.gameTime.hour += Math.floor(state.gameTime.minute / MINUTES_IN_HOUR);
-                state.gameTime.minute %= MINUTES_IN_HOUR;
-            }
-            state.gameTime.hour += timeUpdate.gio ?? 0;
-            if (state.gameTime.hour >= HOURS_IN_DAY) {
-                state.gameTime.day += Math.floor(state.gameTime.hour / HOURS_IN_DAY);
-                state.gameTime.hour %= HOURS_IN_DAY;
-            }
-            state.gameTime.day += timeUpdate.ngay ?? 0;
-            if (state.gameTime.day > DAYS_IN_MONTH) {
-                state.gameTime.month += Math.floor((state.gameTime.day - 1) / DAYS_IN_MONTH);
-                state.gameTime.day = (state.gameTime.day - 1) % DAYS_IN_MONTH + 1;
-            }
-            state.gameTime.month += timeUpdate.thang ?? 0;
-            if (state.gameTime.month > MONTHS_IN_YEAR) {
-                state.gameTime.year += Math.floor((state.gameTime.month - 1) / MONTHS_IN_YEAR);
-                state.gameTime.month = (state.gameTime.month - 1) % MONTHS_IN_YEAR + 1;
-            }
-            state.gameTime.year += timeUpdate.nam ?? 0;
+            // 1. Convert current game time to total minutes
+            let totalMinutes = gameTimeToTotalMinutes(state.gameTime);
+
+            // 2. Add the delta from timeUpdate
+            totalMinutes += (timeUpdate.phut ?? 0);
+            totalMinutes += (timeUpdate.gio ?? 0) * MINUTES_IN_HOUR;
+            totalMinutes += (timeUpdate.ngay ?? 0) * MINUTES_IN_DAY;
+            totalMinutes += (timeUpdate.thang ?? 0) * MINUTES_IN_MONTH;
+            totalMinutes += (timeUpdate.nam ?? 0) * MINUTES_IN_YEAR;
+            
+            // 3. Convert back to GameTime and update state
+            state.gameTime = totalMinutesToGameTime(totalMinutes);
         });
     },
     setCurrentLocation: (location) => set({ currentLocation: location }),
@@ -464,56 +454,43 @@ const useWorldStore = create(immer<WorldState & WorldActions>((set, get) => ({
             }
         });
     },
-    updateRagVectorStore: async (updates) => {
-        if (updates.length === 0) return;
-
-        const metadataToEmbed: RAG.VectorMetadata[] = [];
-        for (const { entity, type } of updates) {
-            let textToEmbed = '';
-            // This is a mapping from our entity type to the correct formatter function.
-            switch (type) {
-                case 'npc': case 'wife': case 'slave': case 'prisoner': textToEmbed = RAG.formatCharacterForEmbedding(entity); break;
-                case 'item': textToEmbed = RAG.formatItemForEmbedding(entity); break;
-                case 'skill': textToEmbed = RAG.formatSkillForEmbedding(entity); break;
-                case 'quest': textToEmbed = RAG.formatQuestForEmbedding(entity); break;
-                case 'location': textToEmbed = RAG.formatLocationForEmbedding(entity); break;
-                case 'faction': textToEmbed = RAG.formatFactionForEmbedding(entity); break;
-                case 'lore': textToEmbed = RAG.formatLoreForEmbedding(entity); break;
-                case 'beast': textToEmbed = RAG.formatBeastForEmbedding(entity); break;
+    batchUpdateRagVectors: (updates) => {
+        set(state => {
+            if (!state.ragVectorStore) {
+                state.ragVectorStore = { vectors: [], metadata: [] };
             }
-            if (textToEmbed) {
-                metadataToEmbed.push({ entityId: entity.id, entityType: type, text: textToEmbed });
-            }
-        }
-
-        if (metadataToEmbed.length === 0) return;
-        
-        try {
-            const newVectors = await generateEmbeddings(metadataToEmbed.map(m => m.text));
-            set(state => {
-                if (!state.ragVectorStore) {
-                    state.ragVectorStore = { vectors: [], metadata: [] };
+            updates.forEach(({ metadata, vector }) => {
+                if (!vector) return;
+                const existingIndex = state.ragVectorStore!.metadata.findIndex(m => m.entityId === metadata.entityId);
+                if (existingIndex > -1) {
+                    // Overwrite existing entry
+                    state.ragVectorStore!.vectors[existingIndex] = vector;
+                    state.ragVectorStore!.metadata[existingIndex] = metadata;
+                } else {
+                    // Add new entry
+                    state.ragVectorStore!.vectors.push(vector);
+                    state.ragVectorStore!.metadata.push(metadata);
                 }
-                metadataToEmbed.forEach((metadata, index) => {
-                    const newVector = newVectors[index];
-                    if (!newVector) return;
-
-                    const existingIndex = state.ragVectorStore!.metadata.findIndex(m => m.entityId === metadata.entityId);
-                    if (existingIndex > -1) {
-                        // Update existing entry
-                        state.ragVectorStore!.vectors[existingIndex] = newVector;
-                        state.ragVectorStore!.metadata[existingIndex] = metadata;
-                    } else {
-                        // Add new entry
-                        state.ragVectorStore!.vectors.push(newVector);
-                        state.ragVectorStore!.metadata.push(metadata);
-                    }
-                });
             });
-        } catch (error) {
-            console.error("Failed to update RAG vector store:", error);
-            useToastStore.getState().addToast("Lỗi cập nhật trí nhớ AI.", "error");
-        }
+        });
+    },
+    removeRagVectorsByIds: (idsToRemove) => {
+        set(state => {
+            if (!state.ragVectorStore) return;
+            const idsSet = new Set(idsToRemove);
+            
+            const newVectors = [];
+            const newMetadata = [];
+
+            for (let i = 0; i < state.ragVectorStore.metadata.length; i++) {
+                if (!idsSet.has(state.ragVectorStore.metadata[i].entityId)) {
+                    newVectors.push(state.ragVectorStore.vectors[i]);
+                    newMetadata.push(state.ragVectorStore.metadata[i]);
+                }
+            }
+            state.ragVectorStore.vectors = newVectors;
+            state.ragVectorStore.metadata = newMetadata;
+        });
     }
 })));
 
@@ -667,18 +644,42 @@ const getAllNameableEntities = (state: FullGameState): { entity: any, type: Vect
  */
 const vectorizeInitialKnowledgeBase = async () => {
     const { getState } = useGameStore;
-    // We need the full state to pass to getAllNameableEntities
     const allEntities = getAllNameableEntities(getState());
-
-    // Filter out entities that might not have an ID, which is a requirement for RAG.
     const uniqueEntities = Array.from(new Map(allEntities.filter(e => e.entity && e.entity.id).map(e => [e.entity.id, e])).values());
 
     if (uniqueEntities.length > 0) {
         const message = `AI đang ghi nhớ ${uniqueEntities.length} ngữ cảnh của thế giới...`;
         useToastStore.getState().addToast(message, 'info');
         useGameSessionStore.getState().addLog(message, 'system');
-        // This existing function handles formatting, embedding, and storing vectors.
-        await useWorldStore.getState().updateRagVectorStore(uniqueEntities);
+        
+        const metadataToEmbed: RAG.VectorMetadata[] = [];
+        for (const { entity, type } of uniqueEntities) {
+            let textToEmbed = '';
+            switch (type) {
+                case 'npc': case 'wife': case 'slave': case 'prisoner': textToEmbed = RAG.formatCharacterForEmbedding(entity); break;
+                case 'item': textToEmbed = RAG.formatItemForEmbedding(entity); break;
+                case 'skill': textToEmbed = RAG.formatSkillForEmbedding(entity); break;
+                case 'quest': textToEmbed = RAG.formatQuestForEmbedding(entity); break;
+                case 'location': textToEmbed = RAG.formatLocationForEmbedding(entity); break;
+                case 'faction': textToEmbed = RAG.formatFactionForEmbedding(entity); break;
+                case 'lore': textToEmbed = RAG.formatLoreForEmbedding(entity); break;
+                case 'beast': textToEmbed = RAG.formatBeastForEmbedding(entity); break;
+            }
+            if (textToEmbed) {
+                metadataToEmbed.push({ entityId: entity.id, entityType: type, text: textToEmbed });
+            }
+        }
+        
+        if (metadataToEmbed.length === 0) return;
+        
+        try {
+            const newVectors = await generateEmbeddings(metadataToEmbed.map(m => m.text));
+            const updates = metadataToEmbed.map((metadata, index) => ({ metadata, vector: newVectors[index] }));
+            useWorldStore.getState().batchUpdateRagVectors(updates);
+        } catch (error) {
+            console.error("Failed to vectorize initial knowledge base:", error);
+            useToastStore.getState().addToast("Lỗi khởi tạo trí nhớ AI.", "error");
+        }
     }
 };
 
@@ -715,6 +716,15 @@ const retrieveContextForAction = async (action: string, gameState: FullGameState
     } catch (e) {
         console.error("Semantic retrieval error:", e);
     }
+    
+    // Add dynamic player context
+    const currentQuest = gameState.quests.find(q => !q.isCompleted && !q.isFailed);
+    if (currentQuest) {
+        contextChunks.add(RAG.formatQuestForEmbedding(currentQuest));
+    }
+    gameState.wives.forEach(w => contextChunks.add(RAG.formatCharacterForEmbedding(w)));
+    gameState.slaves.forEach(s => contextChunks.add(RAG.formatCharacterForEmbedding(s)));
+    gameState.prisoners.forEach(p => contextChunks.add(RAG.formatCharacterForEmbedding(p)));
 
     if (contextChunks.size === 0) {
         return undefined;
@@ -723,70 +733,11 @@ const retrieveContextForAction = async (action: string, gameState: FullGameState
     return Array.from(contextChunks).join('\n---\n');
 };
 
-const handleRagUpdates = async (parsedUpdate: ParsedStoryUpdate) => {
-    const { getState } = useGameStore;
-    const entitiesToUpdate: { entity: any, type: VectorEntityType }[] = [];
-
-    const findEntity = (name: string, type: 'item' | 'skill' | 'quest' | 'npc' | 'beast' | 'location' | 'faction' | 'lore' | 'wife' | 'slave' | 'prisoner') => {
-        const state = getState();
-        switch (type) {
-            case 'item': return state.player.inventory.find(e => e.name === name);
-            case 'skill': return state.player.skills.find(e => e.name === name);
-            case 'quest': return state.quests.find(e => e.title === name);
-            case 'lore': return state.startingFactors?.lore.find(e => e.title === name);
-            case 'wife': return state.wives.find(e => e.name === name);
-            case 'slave': return state.slaves.find(e => e.name === name);
-            case 'prisoner': return state.prisoners.find(e => e.name === name);
-            case 'beast': return state.startingFactors?.beasts.find(e => e.name === name);
-            case 'location': return state.startingFactors?.locations.find(e => e.name === name);
-            case 'faction': return state.startingFactors?.factions.find(e => e.name === name);
-            case 'npc': 
-            default: return state.startingFactors?.npcs.find((e: any) => e.name === name);
-        }
-    };
-    
-    parsedUpdate.itemsAdded.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.name, 'item'), type: 'item'}));
-    parsedUpdate.skillsLearned.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.name, 'skill'), type: 'skill' }));
-    parsedUpdate.questsAssigned.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.title, 'quest'), type: 'quest'}));
-    parsedUpdate.npcsAdded.forEach(e => {
-        const relationship = e.relationshipToPlayer;
-        const type: VectorEntityType = relationship === 'Đạo Lữ' ? 'wife' : relationship === 'Nô Lệ' ? 'slave' : relationship === 'Tù Nhân' ? 'prisoner' : 'npc';
-        const entity = findEntity(e.name, type);
-        if (entity) entitiesToUpdate.push({ entity, type });
-    });
-    parsedUpdate.beastsAdded.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.name, 'beast'), type: 'beast'}));
-    parsedUpdate.locationsAdded.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.name, 'location'), type: 'location'}));
-    parsedUpdate.factionsAdded.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.name, 'faction'), type: 'faction'}));
-    parsedUpdate.loreAdded.forEach(e => entitiesToUpdate.push({ entity: findEntity(e.title, 'lore'), type: 'lore'}));
-    
-    const allUpdates = [
-        ...parsedUpdate.itemsUpdated.map(p => ({...p, type: 'item' as const})),
-        ...parsedUpdate.npcsUpdated.map(p => ({...p, type: 'npc' as const})),
-        ...parsedUpdate.wivesUpdated.map(p => ({...p, type: 'wife' as const})),
-        ...parsedUpdate.slavesUpdated.map(p => ({...p, type: 'slave' as const})),
-        ...parsedUpdate.prisonersUpdated.map(p => ({...p, type: 'prisoner' as const})),
-        ...parsedUpdate.locationsUpdated.map(p => ({...p, type: 'location' as const})),
-        ...parsedUpdate.factionsUpdated.map(p => ({...p, type: 'faction' as const})),
-        ...parsedUpdate.loreUpdated.map(p => ({...p, type: 'lore' as const})),
-        ...parsedUpdate.questsUpdated.map(p => ({name: p.title, type: 'quest' as const}))
-    ];
-
-    allUpdates.forEach(p => {
-        const entity = findEntity(p.name, p.type);
-        if (entity) entitiesToUpdate.push({ entity, type: p.type });
-    });
-
-    const uniqueEntities = Array.from(new Map(entitiesToUpdate.filter(e => e.entity && e.entity.id).map(e => [e.entity.id, e])).values());
-
-    if (uniqueEntities.length > 0) {
-        await useWorldStore.getState().updateRagVectorStore(uniqueEntities);
-    }
-};
-
-
 interface GameStoreActions {
-    dispatchStoryUpdate: (update: ParsedStoryUpdate) => void;
+    processTagsAndQueueChanges: (update: ParsedStoryUpdate) => { ragUpdateQueue: VectorMetadata[], idsToRemoveFromRag: string[] };
+    processRagQueues: (updateQueue: VectorMetadata[], removalQueue: string[]) => Promise<void>;
     handlePlayerChoice: (choice: Choice) => Promise<void>;
+    handlePlayerFreeInputAction: (inputText: string, mode: 'action' | 'story') => Promise<void>;
     handleProcessDebugTags: (narration: string, tags: string) => Promise<void>;
     startNewGame: (characterData: CharacterCreationData, worldData: WorldData, initialGameData: ParsedInitialGameData, initialPrompt: string) => Promise<void>;
     showCharacterCreation: () => void;
@@ -810,104 +761,199 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
     ...useGameSessionStore.getState(),
 
     // ACTIONS
-    dispatchStoryUpdate: (update: ParsedStoryUpdate) => {
+    processTagsAndQueueChanges: (update) => {
+        const ragUpdateQueue: VectorMetadata[] = [];
+        const idsToRemoveFromRag: string[] = [];
+
         const playerActions = usePlayerStore.getState();
         const worldActions = useWorldStore.getState();
         const sessionActions = useGameSessionStore.getState();
         
-        // Calculate endTick for new status effects BEFORE applying them
-        const { gameTime } = get(); // Get current gameTime from the orchestrator store
+        // --- 1. PREPARE REMOVALS: Capture IDs before entities are deleted from state ---
+        const findIdByName = (name: string, list: ({ id: string, name: string } | { id: string, title: string })[]) => 
+            (list.find(e => ('name' in e ? e.name : e.title) === name) as { id: string })?.id;
+
+        const { startingFactors } = useWorldStore.getState();
+        const { wives, slaves, prisoners, companions } = usePlayerStore.getState();
+
+        update.npcsRemoved.forEach(e => { const id = findIdByName(e.name, startingFactors?.npcs ?? []); if (id) idsToRemoveFromRag.push(id); });
+        update.wivesRemoved.forEach(e => { const id = findIdByName(e.name, wives); if (id) idsToRemoveFromRag.push(id); });
+        update.slavesRemoved.forEach(e => { const id = findIdByName(e.name, slaves); if (id) idsToRemoveFromRag.push(id); });
+        update.prisonersRemoved.forEach(e => { const id = findIdByName(e.name, prisoners); if (id) idsToRemoveFromRag.push(id); });
+        update.beastsRemoved.forEach(e => { const id = findIdByName(e.name, startingFactors?.beasts ?? []); if (id) idsToRemoveFromRag.push(id); });
+        update.companionsRemoved.forEach(e => { const id = findIdByName(e.name, companions); if (id) idsToRemoveFromRag.push(id); });
+        
+        // --- 2. DISPATCH STATE UPDATES: Apply all changes to the "live" game state ---
+        const { gameTime } = get();
         const currentTimeInMinutes = gameTimeToTotalMinutes(gameTime);
-        const processedStatusEffects = update.statusEffectsApplied.map(effect => ({
-            ...effect,
-            endTick: effect.durationMinutes > 0
-                ? currentTimeInMinutes + effect.durationMinutes
-                : 0, // 0 for permanent
-        }));
+        const processedStatusEffects = update.statusEffectsApplied.map(effect => ({ ...effect, endTick: effect.durationMinutes > 0 ? currentTimeInMinutes + effect.durationMinutes : 0 }));
 
         if (update.storyText) sessionActions.addLog(update.storyText, 'story');
         sessionActions.setChoices(update.choices);
         sessionActions.setAwaitingPlayerAction(update.choices.length > 0);
-        
         if (update.statsUpdate) {
             playerActions.applyStatsUpdate(update.statsUpdate);
             if (update.statsUpdate.turn) sessionActions.incrementTurnCounter(update.statsUpdate.turn);
         }
         if (update.timeUpdate) worldActions.advanceTime(update.timeUpdate);
         if (update.removeBinhCanhEffect) playerActions.removeBinhCanhEffect(update.removeBinhCanhEffect.kinhNghiemGain);
-        
         playerActions.applyInventoryChanges(update.itemsAdded, update.itemsConsumed, update.itemsUpdated);
         playerActions.learnSkills(update.skillsLearned);
         playerActions.applyStatusEffects(processedStatusEffects, update.statusEffectsRemoved);
         playerActions.updateQuests(update.questsAssigned, update.questsUpdated, update.questsCompleted, update.questsFailed);
-        
         if (update.locationChange) worldActions.setCurrentLocation(update.locationChange);
         if (update.beginCombat) sessionActions.setGameState('InCombat');
-
-        // Handle adding new entities
         update.npcsAdded.forEach(npc => {
-            const relationship = npc.relationshipToPlayer;
-            if (relationship === 'Đạo Lữ' || relationship === 'Nô Lệ' || relationship === 'Tù Nhân') {
-                const specialNpc = {
-                    ...npc,
-                    willpower: relationship === 'Tù Nhân' ? 80 : 50,
-                    obedience: relationship === 'Nô Lệ' ? 50 : 20,
-                    ...(relationship === 'Tù Nhân' && { resistance: 50 }),
-                };
-                playerActions.addSpecialNpcs([specialNpc as any]);
-            } else {
-                worldActions.addEntity('npcs', npc);
-            }
+            if (['Đạo Lữ', 'Nô Lệ', 'Tù Nhân'].includes(npc.relationshipToPlayer)) playerActions.addSpecialNpcs([npc]); else worldActions.addEntity('npcs', npc);
         });
         update.beastsAdded.forEach(beast => worldActions.addEntity('beasts', beast));
         update.locationsAdded.forEach(loc => worldActions.addEntity('locations', loc));
         update.factionsAdded.forEach(faction => worldActions.addEntity('factions', faction));
         update.loreAdded.forEach(lore => worldActions.addEntity('lore', lore));
-        
-        // Handle removing entities
         update.npcsRemoved.forEach(n => worldActions.removeEntity('npcs', n.name));
         update.beastsRemoved.forEach(b => worldActions.removeEntity('beasts', b.name));
-
-        // Handle updating entities
         update.npcsUpdated.forEach(payload => {
             if (payload.field === 'relationshipToPlayer') {
-                // The orchestrator handles both adding to the player and removing from the world.
                 playerActions.handleNpcRelationChange(payload.name, payload.newValue);
                 worldActions.removeEntity('npcs', payload.name);
-            } else {
-                worldActions.updateEntity('npcs', payload);
-            }
+            } else worldActions.updateEntity('npcs', payload);
         });
-
-        playerActions.updateSpecialNpcs(
-            { wives: update.wivesUpdated, slaves: update.slavesUpdated, prisoners: update.prisonersUpdated },
-            { wives: update.wivesRemoved, slaves: update.wivesRemoved, prisoners: update.prisonersRemoved }
-        );
+        playerActions.updateSpecialNpcs({ wives: update.wivesUpdated, slaves: update.slavesUpdated, prisoners: update.prisonersUpdated }, { wives: update.wivesRemoved, slaves: update.slavesRemoved, prisoners: update.prisonersRemoved });
         playerActions.updateCompanions(update.companionsAdded, update.companionsUpdated, update.companionsRemoved);
-
         update.locationsUpdated.forEach(p => worldActions.updateEntity('locations', p));
         update.factionsUpdated.forEach(p => worldActions.updateEntity('factions', p));
         update.loreUpdated.forEach(p => worldActions.updateEntity('lore', p));
-        
-        // Handle World Events
         update.eventsTriggered.forEach(eventData => {
-            // The timeToStart is a string like "3 ngày", which needs to be parsed against current game time
             const startDate = calculateEventStartDate(worldActions.gameTime, (eventData as any).timeToStart);
-            const newEvent: WorldEvent = {
-                ...eventData,
-                startDate,
-            };
-            worldActions.addWorldEvent(newEvent);
-            useToastStore.getState().addToast(`Sự kiện mới: ${newEvent.title}`, 'info');
+            worldActions.addWorldEvent({ ...eventData, startDate });
         });
-        
-        update.eventsUpdated.forEach(payload => {
-            worldActions.updateWorldEvent(payload);
-        });
+        update.eventsUpdated.forEach(p => worldActions.updateWorldEvent(p));
+        update.eventsRevealed.forEach(p => worldActions.addEventDetail(p));
 
-        update.eventsRevealed.forEach(payload => {
-            worldActions.addEventDetail(payload);
+        // --- 3. PREPARE RAG UPDATE QUEUE: Read the *new* state and queue updates ---
+        const findAndQueue = (id: string, type: VectorEntityType) => {
+            let entity: any = null;
+            const state = get();
+            switch(type) {
+                case 'item': entity = state.player.inventory.find(e => e.id === id); break;
+                case 'skill': entity = state.player.skills.find(e => e.id === id); break;
+                case 'quest': entity = state.quests.find(e => e.id === id); break;
+                case 'lore': entity = state.startingFactors?.lore.find(e => e.id === id); break;
+                case 'wife': entity = state.wives.find(e => e.id === id); break;
+                case 'slave': entity = state.slaves.find(e => e.id === id); break;
+                case 'prisoner': entity = state.prisoners.find(e => e.id === id); break;
+                case 'beast': entity = state.startingFactors?.beasts.find(e => e.id === id); break;
+                case 'location': entity = state.startingFactors?.locations.find(e => e.id === id); break;
+                case 'faction': entity = state.startingFactors?.factions.find(e => e.id === id); break;
+                case 'npc': default: entity = state.startingFactors?.npcs.find(e => e.id === id); break;
+            }
+            if (entity) {
+                let text: string = '';
+                if (type === 'npc' || type === 'wife' || type === 'slave' || type === 'prisoner') text = RAG.formatCharacterForEmbedding(entity);
+                else if (type === 'item') text = RAG.formatItemForEmbedding(entity);
+                else if (type === 'skill') text = RAG.formatSkillForEmbedding(entity);
+                else if (type === 'quest') text = RAG.formatQuestForEmbedding(entity);
+                else if (type === 'location') text = RAG.formatLocationForEmbedding(entity);
+                else if (type === 'faction') text = RAG.formatFactionForEmbedding(entity);
+                else if (type === 'lore') text = RAG.formatLoreForEmbedding(entity);
+                else if (type === 'beast') text = RAG.formatBeastForEmbedding(entity);
+                if (text) ragUpdateQueue.push({ entityId: entity.id, entityType: type, text });
+            }
+        };
+
+        const findByNameAndQueue = (name: string, type: 'npc' | 'location' | 'faction' | 'lore' | 'quest') => {
+            const state = get();
+            let entity: any = null;
+            if (type === 'lore' || type === 'quest') {
+                 const list = type === 'lore' ? state.startingFactors?.lore : state.quests;
+                 entity = list?.find(e => e.title === name);
+            } else {
+                 const list = state.startingFactors?.[type === 'npc' ? 'npcs' : type === 'location' ? 'locations' : 'factions'];
+                 entity = list?.find(e => e.name === name);
+            }
+            if(entity) findAndQueue(entity.id, type);
+        };
+
+        update.itemsAdded.forEach(e => findAndQueue(e.id, 'item'));
+        update.skillsLearned.forEach(e => findAndQueue(e.id, 'skill'));
+        update.questsAssigned.forEach(e => findAndQueue(e.id, 'quest'));
+        update.npcsAdded.forEach(e => {
+            const type: VectorEntityType = e.relationshipToPlayer === 'Đạo Lữ' ? 'wife' : e.relationshipToPlayer === 'Nô Lệ' ? 'slave' : e.relationshipToPlayer === 'Tù Nhân' ? 'prisoner' : 'npc';
+            findAndQueue(e.id, type);
         });
+        update.beastsAdded.forEach(e => findAndQueue(e.id, 'beast'));
+        update.locationsAdded.forEach(e => findAndQueue(e.id, 'location'));
+        update.factionsAdded.forEach(e => findAndQueue(e.id, 'faction'));
+        update.loreAdded.forEach(e => findAndQueue(e.id, 'lore'));
+        
+        update.itemsUpdated.forEach(p => { const i = get().player.inventory.find(e => e.name === p.name); if(i) findAndQueue(i.id, 'item'); });
+        update.npcsUpdated.forEach(p => findByNameAndQueue(p.name, 'npc'));
+        update.wivesUpdated.forEach(p => { const w = get().wives.find(e => e.name === p.name); if (w) findAndQueue(w.id, 'wife'); });
+        update.slavesUpdated.forEach(p => { const s = get().slaves.find(e => e.name === p.name); if(s) findAndQueue(s.id, 'slave'); });
+        update.prisonersUpdated.forEach(p => { const pr = get().prisoners.find(e => e.name === p.name); if(pr) findAndQueue(pr.id, 'prisoner'); });
+        update.locationsUpdated.forEach(p => findByNameAndQueue(p.name, 'location'));
+        update.factionsUpdated.forEach(p => findByNameAndQueue(p.name, 'faction'));
+        update.loreUpdated.forEach(p => findByNameAndQueue(p.name, 'lore'));
+        update.questsUpdated.forEach(p => findByNameAndQueue(p.title, 'quest'));
+
+        if (update.eventSummary) {
+            const eventId = crypto.randomUUID();
+            const eventText = RAG.formatEventForEmbedding(update.eventSummary);
+            ragUpdateQueue.push({
+                entityId: eventId,
+                entityType: 'event',
+                text: eventText,
+            });
+        }
+
+        return { ragUpdateQueue, idsToRemoveFromRag };
+    },
+    processRagQueues: async (updateQueue, removalQueue) => {
+        const worldStoreActions = useWorldStore.getState();
+        const sessionActions = useGameSessionStore.getState();
+        const toastActions = useToastStore.getState();
+
+        if (updateQueue.length > 0) {
+            try {
+                const { ragVectorStore } = useWorldStore.getState();
+                const existingIds = new Set(ragVectorStore?.metadata.map(m => m.entityId) ?? []);
+                let newCount = 0;
+                let updatedCount = 0;
+
+                updateQueue.forEach(item => {
+                    if (existingIds.has(item.entityId)) {
+                        updatedCount++;
+                    } else {
+                        newCount++;
+                    }
+                });
+
+                if (newCount > 0) {
+                    const message = `AI đang ghi nhớ ${newCount} ngữ cảnh mới.`;
+                    toastActions.addToast(message, 'info');
+                    sessionActions.addLog(message, 'system');
+                }
+                if (updatedCount > 0) {
+                    const message = `AI đã làm mới ${updatedCount} ngữ cảnh.`;
+                    toastActions.addToast(message, 'info');
+                    sessionActions.addLog(message, 'system');
+                }
+
+                const textsToEmbed = updateQueue.map(m => m.text);
+                const newVectors = await generateEmbeddings(textsToEmbed);
+                const updates = updateQueue.map((metadata, i) => ({ metadata, vector: newVectors[i] }));
+                worldStoreActions.batchUpdateRagVectors(updates);
+            } catch (error) {
+                console.error("Failed to process RAG update queue:", error);
+                toastActions.addToast("Lỗi cập nhật trí nhớ AI (hàng đợi).", "error");
+            }
+        }
+        if (removalQueue.length > 0) {
+            const message = `AI đã loại bỏ ${removalQueue.length} ngữ cảnh không còn phù hợp.`;
+            toastActions.addToast(message, 'info');
+            sessionActions.addLog(message, 'system');
+            worldStoreActions.removeRagVectorsByIds(removalQueue);
+        }
     },
     handlePlayerChoice: async (choice: Choice) => {
         const sessionActions = useGameSessionStore.getState();
@@ -929,10 +975,10 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             const retrievedContext = await retrieveContextForAction(choice.fullText, fullCurrentState);
             sessionActions.addDebugRetrievedContextLog(retrievedContext);
 
-            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext);
+            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext, 'action');
             sessionActions.addDebugSentPromptLog(prompt);
             
-            const responseText = await getStoryUpdate(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext);
+            const responseText = await getStoryUpdate(player, worldData, gameTime, logs, storySummaries, choice.fullText, retrievedContext, 'action');
             sessionActions.addDebugRawResponseLog(responseText);
 
             const parsedUpdate = parseStoryUpdate(responseText);
@@ -940,24 +986,15 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             const notifications = generateNotifications(parsedUpdate, worldData.currencyName, currentLocation);
             sessionActions.setCurrentTurnNotifications(notifications);
 
-            get().dispatchStoryUpdate(parsedUpdate);
-            await handleRagUpdates(parsedUpdate);
+            const { ragUpdateQueue, idsToRemoveFromRag } = get().processTagsAndQueueChanges(parsedUpdate);
             
-            // ---> NEW LOGIC FOR EFFECT EXPIRATION <---
+            get().processRagQueues(ragUpdateQueue, idsToRemoveFromRag);
+            
             const { gameTime: newGameTime } = useWorldStore.getState();
             const { statusEffects } = usePlayerStore.getState();
             const newCurrentTimeInMinutes = gameTimeToTotalMinutes(newGameTime);
-
-            const activeEffects: StatusEffect[] = [];
-            const expiredEffects: StatusEffect[] = [];
-
-            for (const effect of statusEffects) {
-                if (effect.endTick > 0 && effect.endTick <= newCurrentTimeInMinutes) {
-                    expiredEffects.push(effect);
-                } else {
-                    activeEffects.push(effect);
-                }
-            }
+            const activeEffects = statusEffects.filter(effect => !(effect.endTick > 0 && effect.endTick <= newCurrentTimeInMinutes));
+            const expiredEffects = statusEffects.filter(effect => (effect.endTick > 0 && effect.endTick <= newCurrentTimeInMinutes));
 
             if (expiredEffects.length > 0) {
                 usePlayerStore.setState({ statusEffects: activeEffects });
@@ -967,18 +1004,13 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
                     sessionActions.addLog(message, 'system');
                 });
             }
-            // ---> END NEW LOGIC <---
             
             await get().autoSaveGame();
 
             const currentTurnCounter = useGameSessionStore.getState().turnCounter;
             if (currentTurnCounter >= SUMMARY_TURN_INTERVAL) {
                  useGameSessionStore.setState({ turnCounter: 0 }); 
-                const logsToSummarize = useGameSessionStore.getState().logs
-                    .filter(l => l.type === 'story' || l.type === 'event' || l.type === 'player_action')
-                    .slice(- (SUMMARY_TURN_INTERVAL * 2)) 
-                    .map(l => l.type === 'player_action' ? `[Hành động] ${l.message}` : l.message)
-                    .join('\n');
+                const logsToSummarize = useGameSessionStore.getState().logs.slice(- (SUMMARY_TURN_INTERVAL * 2)).map(l => l.type === 'player_action' ? `[Hành động] ${l.message}` : l.message).join('\n');
                 if (logsToSummarize.length > 50) {
                     const summary = await generateSummary(logsToSummarize);
                     if (summary && summary !== "Tóm tắt thất bại.") {
@@ -995,27 +1027,93 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             sessionActions.setIsLoading(false);
         }
     },
+    handlePlayerFreeInputAction: async (inputText, mode) => {
+        const sessionActions = useGameSessionStore.getState();
+        const { player } = usePlayerStore.getState();
+        const { worldData, currentLocation, gameTime } = useWorldStore.getState();
+        
+        if (!worldData || !inputText.trim()) return;
+
+        sessionActions.setCurrentTurnNotifications([]);
+        sessionActions.setAwaitingPlayerAction(false);
+        sessionActions.setIsLoading(true);
+        sessionActions.setChoices([]);
+        
+        const logPrefix = mode === 'action' ? '⚔️' : '📖';
+        sessionActions.addLog(`${logPrefix} ${inputText}`, 'player_action');
+        
+        try {
+            const fullCurrentState = get();
+            const { logs, storySummaries } = useGameSessionStore.getState();
+            
+            const retrievedContext = await retrieveContextForAction(inputText, fullCurrentState);
+            sessionActions.addDebugRetrievedContextLog(retrievedContext);
+            
+            const prompt = createStoryUpdatePrompt(player, worldData, gameTime, logs, storySummaries, inputText, retrievedContext, mode);
+            sessionActions.addDebugSentPromptLog(prompt);
+            
+            const responseText = await getStoryUpdate(player, worldData, gameTime, logs, storySummaries, inputText, retrievedContext, mode);
+            sessionActions.addDebugRawResponseLog(responseText);
+
+            const parsedUpdate = parseStoryUpdate(responseText);
+
+            const notifications = generateNotifications(parsedUpdate, worldData.currencyName, currentLocation);
+            sessionActions.setCurrentTurnNotifications(notifications);
+
+            const { ragUpdateQueue, idsToRemoveFromRag } = get().processTagsAndQueueChanges(parsedUpdate);
+            
+            get().processRagQueues(ragUpdateQueue, idsToRemoveFromRag);
+            
+            const { gameTime: newGameTime } = useWorldStore.getState();
+            const { statusEffects } = usePlayerStore.getState();
+            const newCurrentTimeInMinutes = gameTimeToTotalMinutes(newGameTime);
+            const activeEffects = statusEffects.filter(effect => !(effect.endTick > 0 && effect.endTick <= newCurrentTimeInMinutes));
+            const expiredEffects = statusEffects.filter(effect => (effect.endTick > 0 && effect.endTick <= newCurrentTimeInMinutes));
+
+            if (expiredEffects.length > 0) {
+                usePlayerStore.setState({ statusEffects: activeEffects });
+                expiredEffects.forEach(effect => {
+                    const message = `[Hiệu ứng] "${effect.name}" đã kết thúc.`;
+                    useToastStore.getState().addToast(message, 'info');
+                    sessionActions.addLog(message, 'system');
+                });
+            }
+            
+            await get().autoSaveGame();
+
+            const currentTurnCounter = useGameSessionStore.getState().turnCounter;
+            if (currentTurnCounter >= SUMMARY_TURN_INTERVAL) {
+                 useGameSessionStore.setState({ turnCounter: 0 }); 
+                const logsToSummarize = useGameSessionStore.getState().logs.slice(- (SUMMARY_TURN_INTERVAL * 2)).map(l => l.type === 'player_action' ? `[Hành động] ${l.message}` : l.message).join('\n');
+                if (logsToSummarize.length > 50) {
+                    const summary = await generateSummary(logsToSummarize);
+                    if (summary && summary !== "Tóm tắt thất bại.") {
+                        sessionActions.addSummary(summary);
+                        sessionActions.addLog(`[Ký Ức] ${summary}`, 'system');
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error("Failed to handle player free input:", error);
+            useToastStore.getState().addToast("Thiên cơ hỗn loạn, không thể diễn giải hành động của bạn.", "error");
+        } finally {
+            sessionActions.setIsLoading(false);
+        }
+    },
     handleProcessDebugTags: async (narration: string, tags: string) => {
         const sessionActions = useGameSessionStore.getState();
         sessionActions.setIsLoading(true);
-
         try {
-            // 1. Add narration to the log if provided
-            if (narration.trim()) {
-                sessionActions.addLog(narration.trim(), 'story');
-            }
-
-            // 2. Parse and dispatch the tags using existing game logic
+            if (narration.trim()) sessionActions.addLog(narration.trim(), 'story');
             const processedTags = tags.split('\n').map(t => t.trim()).filter(t => t).join('\n');
             const parsedUpdate = parseStoryUpdate(processedTags);
-
-            get().dispatchStoryUpdate(parsedUpdate);
+            const { ragUpdateQueue, idsToRemoveFromRag } = get().processTagsAndQueueChanges(parsedUpdate);
             
-            // 3. Update RAG with any new/updated entities from the tags
-            await handleRagUpdates(parsedUpdate);
+            // In debug mode, we might want to wait for the result to see the change immediately.
+            await get().processRagQueues(ragUpdateQueue, idsToRemoveFromRag);
 
             useToastStore.getState().addToast("Debug tags đã được xử lý.", "success");
-
         } catch (error) {
             console.error("Failed to process debug tags:", error);
             useToastStore.getState().addToast("Xử lý debug tags thất bại, vui lòng kiểm tra cú pháp.", "error");
@@ -1031,44 +1129,29 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         sessionActions.addDebugSentPromptLog(initialPrompt);
         
         const realmNames = worldData.cultivationSystem ?? DEFAULT_CULTIVATION_REALMS;
-        
-        // Prioritize user's input for starting realm over AI's output to fix the bug.
         const userDefinedRealm = worldData.startingRealm?.trim();
         const aiGeneratedRealm = initialGameData.initialPlayerState.realm as unknown as string;
         const initialRealmString = userDefinedRealm || aiGeneratedRealm || 'Phàm Nhân Nhất Trọng';
-
         let realm = parseRealmString(initialRealmString, realmNames) || initialPlayerRealm;
         let maxThoNguyen = calculateMaxThoNguyen(realm.majorRealmIndex);
 
         if (initialGameData.initialPlayerState.maxThoNguyen && initialGameData.initialPlayerState.maxThoNguyen > maxThoNguyen) {
             maxThoNguyen = initialGameData.initialPlayerState.maxThoNguyen;
         }
-
         let tuoi = maxThoNguyen - (initialGameData.initialPlayerState.thoNguyen || maxThoNguyen - 18);
         tuoi = Math.max(tuoi, 1);
 
         const { theChat: charCreationTheChat, ...restOfCharacterData } = characterData;
-        
         const player: PlayerState = {
-            ...initialPlayerState,
-            ...initialGameData.initialPlayerState,
-            ...restOfCharacterData,
-            realm,
-            tuoi,
-            maxThoNguyen,
-            theChat: charCreationTheChat?.name || initialGameData.initialPlayerState.theChat || 'Phàm Thể',
-            inventory: [],
-            skills: initialGameData.skillsLearned,
+            ...initialPlayerState, ...initialGameData.initialPlayerState, ...restOfCharacterData,
+            realm, tuoi, maxThoNguyen, theChat: charCreationTheChat?.name || initialGameData.initialPlayerState.theChat || 'Phàm Thể',
+            inventory: initialGameData.itemsAdded, skills: initialGameData.skillsLearned,
         };
-        
         const startingFactors: StartingFactors = {
-            items: initialGameData.itemsAdded,
-            skills: initialGameData.skillsLearned,
+            items: [], skills: [],
             npcs: initialGameData.npcsAdded.filter(n => !['Đạo Lữ', 'Nô Lệ', 'Tù Nhân'].includes(n.relationshipToPlayer)) as NPC[],
-            beasts: initialGameData.beastsAdded,
-            locations: initialGameData.locationsAdded,
-            factions: initialGameData.factionsAdded,
-            lore: initialGameData.loreAdded,
+            beasts: initialGameData.beastsAdded, locations: initialGameData.locationsAdded,
+            factions: initialGameData.factionsAdded, lore: initialGameData.loreAdded,
             wives: initialGameData.npcsAdded.filter(n => n.relationshipToPlayer === 'Đạo Lữ') as Wife[],
             slaves: initialGameData.npcsAdded.filter(n => n.relationshipToPlayer === 'Nô Lệ') as Slave[],
             prisoners: initialGameData.npcsAdded.filter(n => n.relationshipToPlayer === 'Tù Nhân') as Prisoner[],
@@ -1078,11 +1161,10 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         usePlayerStore.getState().initializePlayer(player, startingFactors);
         
         sessionActions.setGameState('Playing');
-        get().dispatchStoryUpdate(initialGameData);
+        get().processTagsAndQueueChanges(initialGameData);
 
         try {
             await vectorizeInitialKnowledgeBase();
-
             const { ragVectorStore } = useWorldStore.getState();
             if (ragVectorStore && ragVectorStore.metadata.length > 0) {
                 const initialRagContent = ragVectorStore.metadata.map(m => m.text).join('\n---\n');
@@ -1098,12 +1180,7 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
     showCharacterCreation: () => useGameSessionStore.getState().setGameState('CreatingCharacter'),
     showSettings: () => useGameSessionStore.getState().setGameState('Settings'),
     showPromptLibrary: () => useGameSessionStore.getState().setGameState('PromptLibrary'),
-    showMainMenu: () => {
-        // We just need to change the game state. The session is reset when a new game
-        // is started via startNewGame, or when a game is loaded. This avoids potential
-        // complex state interactions when simply exiting to the menu.
-        useGameSessionStore.getState().setGameState('MainMenu');
-    },
+    showMainMenu: () => useGameSessionStore.getState().setGameState('MainMenu'),
     showLoadMenu: () => {
         const sessionStore = useGameSessionStore.getState();
         sessionStore.setSaveOrigin(sessionStore.gameState);
@@ -1116,17 +1193,11 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
             addToast("Không thể lưu: không có định danh cuộc chơi.", "error");
             return;
         }
-
         try {
             const { playerState, worldState, sessionState } = getCurrentGameState();
             const newSave: SaveGame = {
-                id: playthroughId,
-                timestamp: Date.now(),
-                characterName: playerState.player.name,
-                realmDisplayName: playerState.player.realm.displayName,
-                playerState,
-                worldState,
-                sessionState,
+                id: playthroughId, timestamp: Date.now(), characterName: playerState.player.name,
+                realmDisplayName: playerState.player.realm.displayName, playerState, worldState, sessionState,
             };
             await saveLoadService.saveGameToSlot(newSave);
             addToast(`Đã lưu tiến trình.`, "success");
@@ -1137,41 +1208,29 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
     },
     autoSaveGame: async () => {
         const { playthroughId } = useGameSessionStore.getState();
-        if (!playthroughId) return; // Don't save if game hasn't started
-
+        if (!playthroughId) return;
         try {
             const { playerState, worldState, sessionState } = getCurrentGameState();
             const newSave: SaveGame = {
-                id: playthroughId, // This will be overwritten by saveAutoSave, but good to have
-                timestamp: Date.now(),
-                characterName: playerState.player.name,
-                realmDisplayName: playerState.player.realm.displayName,
-                playerState,
-                worldState,
-                sessionState,
+                id: playthroughId, timestamp: Date.now(), characterName: playerState.player.name,
+                realmDisplayName: playerState.player.realm.displayName, playerState, worldState, sessionState,
             };
             await saveLoadService.saveAutoSave(newSave);
             useGameSessionStore.getState().setHasAutoSave(true);
         } catch(error) {
             console.error("Failed to auto save game:", error);
-            // Don't show toast for auto-save errors to avoid annoying user
         }
     },
     loadGame: (saveData: SaveGame) => {
-        // Gracefully handle saves from before the debug log arrays were added
         const playerState = saveData.playerState;
         const worldState = saveData.worldState;
         const sessionState = saveData.sessionState;
-
         sessionState.debugRetrievedContextLog = sessionState.debugRetrievedContextLog || [];
         sessionState.debugSentPromptsLog = sessionState.debugSentPromptsLog || [];
         sessionState.debugRawResponsesLog = sessionState.debugRawResponsesLog || [];
-
         usePlayerStore.setState(playerState);
         useWorldStore.setState(worldState);
         useGameSessionStore.setState(sessionState);
-
-        // Ensure we are in the playing screen after load
         useGameSessionStore.getState().setGameState('Playing');
         useToastStore.getState().addToast(`Đã tải thành công hành trình của ${saveData.characterName}`, 'success');
     },
@@ -1181,11 +1240,7 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
         sessionActions.setIsLoading(true);
         try {
             const saveData = await saveLoadService.loadAutoSave();
-            if (saveData) {
-                get().loadGame(saveData);
-            } else {
-                addToast("Không tìm thấy tệp lưu tự động.", "error");
-            }
+            if (saveData) get().loadGame(saveData); else addToast("Không tìm thấy tệp lưu tự động.", "error");
         } catch (error) {
             console.error("Failed to continue game:", error);
             addToast("Tải game tự động thất bại.", "error");
@@ -1208,56 +1263,33 @@ export const useGameStore = create<FullGameState & GameStoreActions>((set, get) 
 // =================================================================
 // STATE SYNCHRONIZATION
 // =================================================================
-// Subscribe to domain stores to update the main orchestrator store's state slice.
-// This ensures components subscribed to useGameStore re-render when underlying data changes.
-// CRITICAL: Only copy state properties, not actions, to prevent polluting the main store.
-
 usePlayerStore.subscribe(
   (newState) => {
     const stateSlice: PlayerRelatedState = {
-        player: newState.player,
-        quests: newState.quests,
-        statusEffects: newState.statusEffects,
-        wives: newState.wives,
-        slaves: newState.slaves,
-        prisoners: newState.prisoners,
-        companions: newState.companions,
+        player: newState.player, quests: newState.quests, statusEffects: newState.statusEffects,
+        wives: newState.wives, slaves: newState.slaves, prisoners: newState.prisoners, companions: newState.companions,
     };
     useGameStore.setState(stateSlice);
   }
 );
-
 useGameSessionStore.subscribe(
   (newState) => {
     const stateSlice: GameSessionState = {
-        logs: newState.logs,
-        isLoading: newState.isLoading,
-        isAwaitingPlayerAction: newState.isAwaitingPlayerAction,
-        gameState: newState.gameState,
-        currentChoices: newState.currentChoices,
-        storySummaries: newState.storySummaries,
-        turnCounter: newState.turnCounter,
-        currentTurnNotifications: newState.currentTurnNotifications,
-        saveOrigin: newState.saveOrigin,
-        playthroughId: newState.playthroughId,
-        hasAutoSave: newState.hasAutoSave,
-        debugRetrievedContextLog: newState.debugRetrievedContextLog,
-        debugSentPromptsLog: newState.debugSentPromptsLog,
+        logs: newState.logs, isLoading: newState.isLoading, isAwaitingPlayerAction: newState.isAwaitingPlayerAction,
+        gameState: newState.gameState, currentChoices: newState.currentChoices, storySummaries: newState.storySummaries,
+        turnCounter: newState.turnCounter, currentTurnNotifications: newState.currentTurnNotifications,
+        saveOrigin: newState.saveOrigin, playthroughId: newState.playthroughId, hasAutoSave: newState.hasAutoSave,
+        debugRetrievedContextLog: newState.debugRetrievedContextLog, debugSentPromptsLog: newState.debugSentPromptsLog,
         debugRawResponsesLog: newState.debugRawResponsesLog,
     };
     useGameStore.setState(stateSlice);
   }
 );
-
 useWorldStore.subscribe(
     (newState) => {
         const stateSlice: WorldState = {
-            worldData: newState.worldData,
-            startingFactors: newState.startingFactors,
-            currentLocation: newState.currentLocation,
-            gameTime: newState.gameTime,
-            worldEvents: newState.worldEvents,
-            ragVectorStore: newState.ragVectorStore
+            worldData: newState.worldData, startingFactors: newState.startingFactors, currentLocation: newState.currentLocation,
+            gameTime: newState.gameTime, worldEvents: newState.worldEvents, ragVectorStore: newState.ragVectorStore
         };
         useGameStore.setState(stateSlice);
     }

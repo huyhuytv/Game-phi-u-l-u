@@ -58,6 +58,7 @@ export interface ParsedStoryUpdate {
     eventsTriggered: WorldEvent[];
     eventsUpdated: WorldEventUpdatePayload[];
     eventsRevealed: WorldEventDetailPayload[];
+    eventSummary?: string;
 }
 
 export interface ParsedInitialGameData extends ParsedStoryUpdate {

@@ -191,8 +191,17 @@ Sau khi kể chuyện, bạn PHẢI sử dụng các tag sau đây trên các d�
     *   Ví dụ tiếng hét chiến đấu: AI kể: Tiếng hét '"Xung phong!"' vang vọng chiến trường.
 
 **2.  Tag Thay Đổi Thời Gian (CỰC KỲ QUAN TRỌNG):**
-    *   **Ý nghĩa:** Thời gian ảnh hưởng lớn đến thế giới (cửa hàng đóng cửa, NPC đi ngủ, yêu thú nguy hiểm hơn xuất hiện).
-    *   **Định dạng:** \`[CHANGE_TIME: nam=Z, thang=Y, ngay=X, gio=H, phut=M]\`. Dùng để cho thời gian trôi qua sau các hành động.
+    *   **Mục đích:** Dùng để **CỘNG THÊM** một khoảng thời gian vào thời gian hiện tại của game.
+    *   **Định dạng:** \`[CHANGE_TIME: nam=Z, thang=Y, ngay=X, gio=H, phut=M]\`.
+    *   **QUY TẮC SỬ DỤNG (TUYỆT ĐỐI KHÔNG LÀM SAI):**
+        *   Chỉ điền các giá trị bạn muốn **CỘNG THÊM**. Các thuộc tính bị bỏ qua sẽ mặc định là 0.
+        *   **VÍ DỤ ĐÚNG:** Để cho 15 phút trôi qua, chỉ cần dùng \`[CHANGE_TIME: phut=15]\`.
+        *   **VÍ DỤ ĐÚNG:** Để cho 2 giờ 30 phút trôi qua, dùng \`[CHANGE_TIME: gio=2, phut=30]\`.
+        *   **VÍ DỤ SAI (CẤM SỬ DỤNG):** \`[CHANGE_TIME: nam=8, thang=8, ngay=10, gio=20, phut=15]\` khi bạn chỉ muốn 15 phút trôi qua.
+    *   **QUY TẮC VỀ KHOẢNG THỜI GIAN:**
+        *   Hành động thông thường (trò chuyện, di chuyển ngắn, chiến đấu, chế tạo): Chỉ dùng **phút** hoặc **giờ**.
+        *   Hành động kéo dài (bế quan, du hành xa, time-skip): Mới được dùng **ngày**, **tháng**, **năm**.
+        *   **CẢNH BÁO:** TUYỆT ĐỐI không cho thời gian trôi qua hàng năm trời cho một hành động đơn lẻ, trừ khi được yêu cầu rõ ràng.
 
 **3.  Tag \`[STATS_UPDATE: TênChỉSố=GiáTrịHoặcThayĐổi, ...]\`:** Dùng để cập nhật chỉ số của người chơi.
     *   \`sinhLuc\`, \`linhLuc\`: Có thể gán giá trị tuyệt đối (\`sinhLuc=50\`), cộng/trừ (\`linhLuc=+=20\`, \`sinhLuc=-=10\`), hoặc dùng \`MAX\` để hồi đầy.
@@ -239,9 +248,14 @@ Sau khi kể chuyện, bạn PHẢI sử dụng các tag sau đây trên các d�
 **9. Quy Tắc Thế Giới Vận Động:**
     *   Thỉnh thoảng (5-10 lượt), hãy tạo ra một sự kiện "off-screen" bằng tag \`[EVENT_TRIGGERED: ...]\` để làm thế giới sống động. Sự kiện có thể xảy ra ở nơi người chơi chưa đến.
 
+**Tag Tóm Tắt Sự Kiện (EVENT_SUMMARY):**
+*   Sau khi kể chuyện và tạo các tag cập nhật khác, bạn PHẢI tạo một tag \`[EVENT_SUMMARY: text="..."]\`.
+*   Trong thuộc tính \`text\`, hãy tóm tắt lại **hành động của người chơi và kết quả quan trọng nhất** của nó trong một câu duy nhất, ở ngôi thứ ba. Điều này giúp AI ghi nhớ các sự kiện chính.
+*   Ví dụ: \`[EVENT_SUMMARY: text="Người chơi đã thành công thuyết phục Lý Tiêu Dao tại Hắc Phong Cốc, khiến anh ta rời Thanh Vân Môn và trở thành đồng minh."]\`
+
 **10. LỰA CHỌN HÀNH ĐỘNG MỚI (QUAN TRỌNG):**
     *   Luôn cung cấp 3 đến 4 lựa chọn.
     *   **ĐỊNH DẠNG BẮT BUỘC:** \`[CHOICE: "Nội dung lựa chọn (Thành công: X% - Độ khó: '...', Lợi ích: Mô tả lợi ích. Rủi ro: Mô tả rủi ro)"]\`.
     *   **Lưu ý:** Người chơi sẽ **KHÔNG** nhìn thấy tỉ lệ \`X%\`. Họ sẽ quyết định dựa trên mô tả "Lợi ích" và "Rủi ro" của bạn. Vì vậy, hãy viết chúng thật rõ ràng và hấp dẫn. Bạn **VẪN PHẢI** cung cấp tỉ lệ \`X%\` để hệ thống tính toán, và tỉ lệ này phải phản ánh **Độ khó** của game.
 ---
-`;
+`

@@ -527,10 +527,11 @@ export const getStoryUpdate = async (
     history: GameLogEntry[],
     storySummaries: string[],
     playerAction: string,
-    retrievedContext: string | undefined
+    retrievedContext: string | undefined,
+    mode: 'action' | 'story'
 ): Promise<string> => {
     try {
-        const prompt = createStoryUpdatePrompt(playerState, worldData, gameTime, history, storySummaries, playerAction, retrievedContext);
+        const prompt = createStoryUpdatePrompt(playerState, worldData, gameTime, history, storySummaries, playerAction, retrievedContext, mode);
         const response = await ai.models.generateContent({
             model: getModelForApi(),
             contents: prompt,

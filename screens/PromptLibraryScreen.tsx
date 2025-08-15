@@ -133,7 +133,7 @@ const PROMPTS_TO_DISPLAY = [
     },
     {
         title: "Lời Nhắc Xử Lý Hành Động (Vai Trò GM)",
-        content: createStoryUpdatePrompt(MOCK_PLAYER_STATE, MOCK_WORLD_DATA, MOCK_GAME_TIME, MOCK_HISTORY, [], "Rút kiếm ra, cẩn thận đối mặt với con yêu lang.", undefined)
+        content: createStoryUpdatePrompt(MOCK_PLAYER_STATE, MOCK_WORLD_DATA, MOCK_GAME_TIME, MOCK_HISTORY, [], "Rút kiếm ra, cẩn thận đối mặt với con yêu lang.", undefined, 'action')
     },
     {
         title: "Lời Nhắc Tóm Tắt Ký Ức",

@@ -11,9 +11,9 @@ const DetailSection: React.FC<{ title: string; children: React.ReactNode }> = ({
 );
 
 const DetailRow: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode }> = ({ label, value, children }) => (
-    <div className="flex justify-between items-center">
-        <span className="text-gray-400">{label}</span>
-        {children || <span className="text-gray-100 font-semibold text-right">{value ?? 'Không rõ'}</span>}
+    <div className="flex justify-between items-baseline">
+        <span className="text-gray-400">{label}:</span>
+        {children || <span className="text-gray-100 font-semibold text-right ml-2 truncate">{value ?? 'Không rõ'}</span>}
     </div>
 );
 
@@ -24,38 +24,35 @@ const NpcDetailView: React.FC<{ npc: NPC }> = ({ npc }) => {
     return (
         <div className="space-y-6">
             <header className="flex items-center gap-6">
-                <div className="w-24 h-24 bg-gray-900 rounded-lg flex items-center justify-center border-2 border-gray-600">
-                    <span className="text-gray-500 text-3xl">?</span>
+                <div className="w-24 h-24 bg-gray-900 rounded-lg flex items-center justify-center border-2 border-gray-600 flex-shrink-0">
+                    <span className="text-gray-500 text-4xl font-serif">?</span>
                 </div>
                 <div>
                     <h3 className="text-3xl font-bold text-cyan-300">{npc.name}</h3>
                     <p className="text-lg text-gray-400">{realmDisplay}</p>
+                    <p className="text-sm text-gray-400">{npc.race} - {npc.gender}</p>
                 </div>
             </header>
+             <div>
+                <p className="text-gray-300 italic text-center bg-gray-900/50 p-3 rounded-md border border-gray-700">{npc.details}</p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <DetailSection title="Tư Luyện">
-                    <DetailRow label="Giới tính" value={npc.gender} />
+                <DetailSection title="Thông Tin Tu Luyện">
                     <DetailRow label="Cảnh giới" value={realmDisplay} />
-                </DetailSection>
-                 <DetailSection title="Vị Trí">
                     <DetailRow label="Tư Chất" value={npc.tuChat} />
                     <DetailRow label="Linh Căn" value={npc.spiritualRoot} />
+                     <DetailRow label="Thể Chất" value={npc.specialPhysique} />
                 </DetailSection>
-                <DetailSection title="Trạng thái quan hệ">
-                    <DetailRow label="Thiện cảm" value={npc.affinity} />
-                </DetailSection>
-                 <DetailSection title="Chỉ số chiến đấu">
-                    <DetailRow label="Sinh Lực" value="100 / 100" />
-                    <DetailRow label="Sức Tấn Công" value={npc.race === "Nhân Tộc" ? "5" : "10"} />
+                 
+                <DetailSection title="Chỉ Số & Trạng Thái">
                     <DetailRow label="Thọ Nguyên" value={`${npc.thoNguyen} / ${npc.maxThoNguyen}`} />
+                    <DetailRow label="Thiện cảm" value={npc.affinity} />
+                    <DetailRow label="Tính cách" value={npc.personality} />
+                    <DetailRow label="Quan hệ" value={npc.relationshipToPlayer} />
                 </DetailSection>
             </div>
             
-             <div>
-                <p className="text-gray-300 italic">{npc.details}</p>
-            </div>
-
             <div className="border-t border-gray-600 pt-4">
                 <DetailSection title="Quản Lý Avatar Đại Diện">
                     <div className="flex gap-4">
@@ -63,6 +60,7 @@ const NpcDetailView: React.FC<{ npc: NPC }> = ({ npc }) => {
                         <Button className="flex-1 bg-gray-600 hover:bg-gray-500 text-sm">Nhập URL</Button>
                         <Button className="flex-1 bg-red-700 hover:bg-red-600 text-sm">Xóa Ảnh</Button>
                     </div>
+                     <p className="text-xs text-gray-500 mt-2 text-center">Tính năng đang được phát triển.</p>
                 </DetailSection>
             </div>
         </div>

@@ -2,7 +2,7 @@
 // RAG - RETRIEVAL-AUGMENTED GENERATION
 // =================================================================
 
-export type VectorEntityType = 'item' | 'skill' | 'quest' | 'npc' | 'location' | 'lore' | 'faction' | 'wife' | 'slave' | 'prisoner' | 'beast';
+export type VectorEntityType = 'item' | 'skill' | 'quest' | 'npc' | 'location' | 'lore' | 'faction' | 'wife' | 'slave' | 'prisoner' | 'beast' | 'event';
 
 export interface VectorMetadata {
   entityId: string;       // ID of the original object (e.g., npc-123)

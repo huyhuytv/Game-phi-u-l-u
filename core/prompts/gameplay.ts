@@ -4,7 +4,7 @@ import { getDynamicAdultContentPrompt, BASE_STORYTELLING_STYLE_PROMPT, MASTER_TA
 
 export const MASTER_GAME_PROMPT = `**YÊU CẦU CỐT LÕI:** Bắt đầu một câu chuyện game nhập vai thể loại "**INPUT_GENRE_HERE**" bằng tiếng Việt. Tạo ra một thế giới sống động và một cốt truyện mở đầu hấp dẫn dựa trên thông tin do người chơi cung cấp. Bắt đầu lời kể ngay lập tức, không có lời dẫn hay tự xưng là người kể chuyện.
 
-**MỆNH LỆNH TỐI THƯỢỢNG: PHONG CÁCH KỂ CHUYỆN ("Tả, đừng kể" - CỰC KỲ QUAN TRỌNG)**
+**MỆNH LỆNH TỐI THƯỢỢỢNG: PHONG CÁCH KỂ CHUYỆN ("Tả, đừng kể" - CỰC KỲ QUAN TRỌNG)**
 Nhiệm vụ của bạn là vẽ nên những bức tranh sống động trong tâm trí người chơi. Hãy tuân thủ nghiêm ngặt các quy tắc sau trong MỌI lời kể:
 *   **Sử dụng Ngũ quan:** Mô tả những gì nhân vật chính **nhìn thấy** (ánh sáng, màu sắc, bóng tối), **nghe thấy** (tiếng gió, tiếng xì xào, sự im lặng), **ngửi thấy** (mùi ẩm mốc, mùi hoa cỏ), **cảm nhận** (cái lạnh của sương, hơi nóng của lửa), và **nếm** (vị gỉ sét của máu).
 *   **"Tả", không "Kể":** Thay vì dùng những từ ngữ chung chung, hãy mô tả chi tiết để người chơi tự cảm nhận.
@@ -111,16 +111,17 @@ Khi nhân vật nói chuyện, rên rỉ khi làm tình, hoặc kêu la khi chi�
     *   Phần văn bản bên ngoài các cặp marker này vẫn là lời kể bình thường của bạn. Chỉ nội dung *bên trong* cặp marker mới được coi là lời nói/âm thanh trực tiếp.
 
 **QUY TẮC 12: VỀ THAY ĐỔI THỜI GIAN (CHANGE_TIME)**
-    *   **Bối cảnh:** Thời gian trong game được tính theo lịch (30 ngày/tháng, 12 tháng/năm) và theo giờ:phút (HH:MM).
-    *   **Ý nghĩa gameplay:** Thời gian ảnh hưởng lớn đến thế giới. Ví dụ: cửa hàng đóng cửa vào ban đêm, NPC đi ngủ, yêu thú nguy hiểm hơn xuất hiện.
-    *   **Khi nào dùng:** Dùng tag này để cho thời gian trôi qua sau các hành động của người chơi.
-        *   **Hành động ngắn:** Dùng \`phut\` (phút) hoặc \`gio\` (giờ). Ví dụ, một cuộc trò chuyện có thể tốn \`phut=15\`, đi từ nơi này sang nơi khác trong thành có thể tốn \`gio=1\`.
-        *   **Hành động dài:** Dùng \`ngay\`, \`thang\`, \`nam\`. Ví dụ, bế quan tu luyện, di chuyển giữa các thành phố.
-    *   **Định dạng:** \`[CHANGE_TIME: nam=Z, thang=Y, ngay=X, gio=H, phut=M]\`. Bạn có thể dùng một hoặc nhiều tham số. Hệ thống sẽ tự động cộng dồn và xử lý ngày/tháng/năm nhảy bậc.
-    *   **Ví dụ:**
-        *   Để cho 2 tiếng 30 phút trôi qua: \`[CHANGE_TIME: gio=2, phut=30]\`
-        *   Để cho 5 ngày trôi qua: \`[CHANGE_TIME: ngay=5]\`
-    *   **Cách kể chuyện:** Hãy lồng ghép yếu tố thời gian vào lời kể. Ví dụ: "Sau gần một canh giờ, bạn đã đến nơi...", "Khi màn đêm buông xuống...", "Ba năm thấm thoắt trôi qua...".
+    *   **Mục đích:** Dùng để **CỘNG THÊM** một khoảng thời gian vào thời gian hiện tại của game.
+    *   **Định dạng:** \`[CHANGE_TIME: nam=Z, thang=Y, ngay=X, gio=H, phut=M]\`.
+    *   **QUY TẮC SỬ DỤNG (TUYỆT ĐỐI KHÔNG LÀM SAI):**
+        *   Chỉ điền các giá trị bạn muốn **CỘNG THÊM**. Các thuộc tính bị bỏ qua sẽ mặc định là 0.
+        *   **VÍ DỤ ĐÚNG:** Để cho 15 phút trôi qua, chỉ cần dùng \`[CHANGE_TIME: phut=15]\`.
+        *   **VÍ DỤ ĐÚNG:** Để cho 2 giờ 30 phút trôi qua, dùng \`[CHANGE_TIME: gio=2, phut=30]\`.
+        *   **VÍ DỤ SAI (CẤM SỬ DỤNG):** \`[CHANGE_TIME: nam=8, thang=8, ngay=10, gio=20, phut=15]\` khi bạn chỉ muốn 15 phút trôi qua.
+    *   **QUY TẮC VỀ KHOẢNG THỜI GIAN:**
+        *   Hành động thông thường (trò chuyện, di chuyển ngắn, chiến đấu, chế tạo): Chỉ dùng **phút** hoặc **giờ**.
+        *   Hành động kéo dài (bế quan, du hành xa, time-skip): Mới được dùng **ngày**, **tháng**, **năm**.
+        *   **CẢNH BÁO:** TUYỆT ĐỐI không cho thời gian trôi qua hàng năm trời cho một hành động đơn lẻ, trừ khi được yêu cầu rõ ràng.
 
 **QUY TẮC 13: VỀ CẬP NHẬT CHỈ SỐ (STATS_UPDATE)**
 Dùng để cập nhật chỉ số của người chơi.
@@ -276,7 +277,8 @@ export const createStoryUpdatePrompt = (
     history: GameLogEntry[],
     storySummaries: string[],
     playerAction: string,
-    retrievedContext: string | undefined
+    retrievedContext: string | undefined,
+    mode: 'action' | 'story'
 ): string => {
     const playerInfo = formatPlayerStateForAI(playerState);
     const shortTermHistory = formatShortTermHistoryForAI(history);
@@ -290,6 +292,22 @@ export const createStoryUpdatePrompt = (
 Dưới đây là một số thông tin liên quan từ các sự kiện trong quá khứ có thể hữu ích cho lượt này. Hãy sử dụng nó để đảm bảo tính nhất quán của câu chuyện.
 ${retrievedContext ? `\`\`\`\n${retrievedContext}\n\`\`\`` : "Không có bối cảnh truy xuất nào."}
 `;
+
+    const ACTION_MODE_INSTRUCTION = `
+**HƯỚNG DẪN XỬ LÝ DÀNH CHO AI:**
+Xử lý nội dung dưới đây như một HÀNH ĐỘNG TRỰC TIẾP mà nhân vật chính đang thực hiện. Mô tả kết quả của hành động này và các diễn biến tiếp theo một cách chi tiết và hấp dẫn, dựa trên TOÀN BỘ BỐI CẢNH. Kết quả thành công hay thất bại PHẢI dựa trên một tỉ lệ hợp lý do bạn quyết định, có tính đến Độ Khó của game.`;
+
+    const STORY_MODE_INSTRUCTION = `
+**HƯỚNG DẪN XỬ LÝ DÀNH CHO AI (CỰC KỲ QUAN TRỌNG):**
+Nội dung dưới đây là một GỢI Ý/CHỈ THỊ CÂU CHUYỆN từ người chơi để định hướng câu chuyện. Đây KHÔNG phải là hành động trực tiếp của nhân vật chính.
+
+**NHIỆM VỤ CỦA BẠN LÀ BẮT BUỘC PHẢI LÀM CHO DIỄN BIẾN NÀY XẢY RA TRONG LƯỢT TIẾP THEO.** Hãy tìm một cách tự nhiên và hợp lý nhất để hợp thức hóa sự kiện này trong bối cảnh hiện tại.
+
+Sau khi mô tả sự kiện này đã xảy ra, hãy cung cấp các lựa chọn [CHOICE: "..."] để người chơi phản ứng với tình huống mới.
+LƯU Ý: Trong chế độ này, chỉ tạo các tag [CHOICE]. Tránh tạo các tag thay đổi trạng thái game (như [ITEM_ACQUIRED]) trừ khi diễn biến câu chuyện yêu cầu rõ ràng.`;
+
+    const modeInstruction = mode === 'action' ? ACTION_MODE_INSTRUCTION : STORY_MODE_INSTRUCTION;
+    const userInputLabel = mode === 'action' ? 'HÀNH ĐỘNG CỦA NGƯỜI CHƠI' : 'DIỄN BIẾN MONG MUỐN TỪ NGƯỜI CHƠI';
 
     return `${ragContextBlock}
 
@@ -314,7 +332,9 @@ ${playerInfo}
 ${longTermSummaries}
 *   **Sự Kiện Vừa Xảy Ra (Bối cảnh gần nhất):**
 ${shortTermHistory}
-*   **HÀNH ĐỘNG MỚI NHẤT CỦA NGƯỜI CHƠI:** "${playerAction}"
+
+${modeInstruction}
+*   **${userInputLabel}:** "${playerAction}"
 
 ${MASTER_TAG_RULES_PROMPT}
 

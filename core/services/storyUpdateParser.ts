@@ -477,6 +477,9 @@ export const parseStoryUpdate = (responseText: string): ParsedStoryUpdate => {
                  if (eventTitle && detail) result.eventsRevealed.push({ eventTitle, detail });
                  break;
             }
+            case 'EVENT_SUMMARY':
+                result.eventSummary = attributes.text;
+                break;
         }
     });
 

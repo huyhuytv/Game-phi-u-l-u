@@ -27,76 +27,118 @@ const getRealmDisplayName = (realm: RealmState | string): string => {
 
 export function formatCharacterForEmbedding(character: AnyCharacter): string {
     const charType = getCharacterType(character);
-    let details = `Nhân vật (${charType}): ${character.name} (ID: ${character.id}). Giới tính: ${character.gender}. Chủng tộc: ${character.race}. Cảnh giới: ${getRealmDisplayName(character.realm)}. Mối quan hệ với người chơi: ${character.relationshipToPlayer}. Thiện cảm: ${character.affinity}. Linh căn: ${character.spiritualRoot}. Thể chất: ${character.specialPhysique}. Tư chất: ${character.tuChat}.`;
+    const realmDisplay = getRealmDisplayName(character.realm);
+
+    // Bắt đầu bằng thông tin cơ bản
+    let summary = `"${character.name}" (ID: ${character.id}) là một ${charType} ${character.race}, tu vi hiện tại là ${realmDisplay}.`;
+
+    // Thêm thông tin về mối quan hệ và cảm xúc
+    summary += ` Đối với người chơi, họ là một ${character.relationshipToPlayer} với mức độ thiện cảm là ${character.affinity}.`;
+
+    // Thêm thuộc tính tu luyện
+    summary += ` Họ sở hữu linh căn "${character.spiritualRoot}", thể chất "${character.specialPhysique}", và tư chất tu luyện được đánh giá là "${character.tuChat}".`;
     
-    // Add stats if available
-    // Note: Assuming character objects don't have HP/MP directly, these would come from a combat state if needed.
-    // Let's add tho nguyen as it's part of the base NPC type.
-    if (character.thoNguyen > 0) {
-        details += ` Thọ nguyên ${character.thoNguyen}/${character.maxThoNguyen}.`;
+    // Thêm tuổi thọ nếu có
+    if (character.maxThoNguyen > 0) {
+        summary += ` Tuổi thọ của họ là ${character.thoNguyen}/${character.maxThoNguyen}.`;
     }
 
+    // Thêm các trạng thái đặc biệt cho vợ/nô lệ/tù nhân
     if ('willpower' in character && 'obedience' in character) {
         if ('resistance' in character) { // Prisoner
-            details += ` Trạng thái tù nhân: Ý chí ${character.willpower}, Phản kháng ${character.resistance}, Phục tùng ${character.obedience}.`;
+            summary += ` Là một tù nhân, trạng thái của họ cho thấy ý chí ở mức ${character.willpower}, sự phản kháng là ${character.resistance}, và độ phục tùng là ${character.obedience}.`;
         } else { // Wife/Slave
-            details += ` Trạng thái bạn đồng hành: Ý chí ${character.willpower}, Phục tùng ${character.obedience}.`;
+            summary += ` Trạng thái hiện tại của họ cho thấy ý chí ở mức ${character.willpower} và sự phục tùng là ${character.obedience}.`;
         }
     }
 
-    details += ` Mô tả: ${character.details}.`;
-    return details;
+    // Kết thúc bằng mô tả chung
+    summary += ` Sơ lược: ${character.details}`;
+    
+    return summary;
 }
 
 export function formatItemForEmbedding(item: AnyItem): string {
-    let details = `Vật phẩm: ${item.name} (ID: ${item.id}). Loại: ${item.category}. Độ hiếm: ${item.rarity}. Mô tả: ${item.description}.`;
+    // Bắt đầu bằng thông tin cơ bản
+    let summary = `"${item.name}" (ID: ${item.id}) là một vật phẩm thuộc loại "${item.category}", có độ hiếm "${item.rarity}" và cấp bậc "${item.itemRealm}".`;
+    summary += ` Mô tả: ${item.description}.`;
 
+    // Thêm chi tiết dựa trên loại vật phẩm
     if (item.category === 'Equipment') {
         const eq = item as EquipmentItem;
-        details += ` Chỉ số cộng thêm: ${eq.statBonusesJSON}. Hiệu ứng đặc biệt: ${eq.uniqueEffectsList}. Loại trang bị: ${eq.equipmentType}.`;
+        summary += ` Là một trang bị loại "${eq.equipmentType}", nó cung cấp các chỉ số cộng thêm: ${eq.statBonusesJSON} và có hiệu ứng đặc biệt: ${eq.uniqueEffectsList}.`;
     } else if (item.category === 'Potion') {
         const potion = item as PotionItem;
-        details += ` Hiệu ứng: ${potion.effectsList}.`;
+        summary += ` Là một loại đan dược, nó có các hiệu ứng sau: ${potion.effectsList}.`;
     }
-    return details;
+
+    return summary;
 }
 
 export function formatBeastForEmbedding(beast: Beast): string {
-    return `Yêu thú: ${beast.name} (ID: ${beast.id}). Loài: ${beast.species}. Cảnh giới: ${beast.realm}. Thái độ: ${beast.isHostile ? 'Thù địch' : 'Trung lập'}. Mô tả: ${beast.description}.`;
+    let summary = `"${beast.name}" (ID: ${beast.id}) là một yêu thú thuộc loài "${beast.species}", có sức mạnh tương đương cảnh giới "${beast.realm}".`;
+    summary += ` Thái độ của nó đối với người chơi là ${beast.isHostile ? 'thù địch' : 'trung lập/chưa xác định'}.`;
+    summary += ` Mô tả: ${beast.description}.`;
+    return summary;
 }
 
 export function formatSkillForEmbedding(skill: AnySkill): string {
-    let details = `Kỹ năng: ${skill.name} (ID: ${skill.id}). Loại: ${skill.category}. Mô tả: ${skill.description}. Hiệu ứng: ${skill.otherEffects}.`;
-    
-    if ('manaCost' in skill && (skill as LinhKiSkill).linhKiActivation !== 'Bị động') {
-        const combatSkill = skill as LinhKiSkill;
+    let summary = `Đây là kỹ năng "${skill.name}" (ID: ${skill.id}), thuộc loại "${skill.category}".`;
+    summary += ` Công dụng chính: ${skill.description}.`;
+
+    const addCombatDetails = (s: LinhKiSkill) => {
+        if (s.linhKiActivation === 'Bị động') return;
         const parts = [];
-        if (combatSkill.manaCost) parts.push(`Tiêu hao ${combatSkill.manaCost} MP`);
-        if (combatSkill.cooldown) parts.push(`Hồi ${combatSkill.cooldown} lượt`);
-        if (combatSkill.baseDamage) parts.push(`Sát thương cơ bản ${combatSkill.baseDamage}`);
-        if (combatSkill.damageMultiplier) parts.push(`Sát thương theo ${combatSkill.damageMultiplier * 100}% ATK`);
-        if (combatSkill.baseHealing) parts.push(`Hồi ${combatSkill.baseHealing} HP`);
+        if (s.manaCost) parts.push(`tiêu hao ${s.manaCost} linh lực`);
+        if (s.cooldown) parts.push(`hồi chiêu ${s.cooldown} lượt`);
+        if (s.baseDamage) parts.push(`sát thương cơ bản ${s.baseDamage}`);
+        if (s.damageMultiplier) parts.push(`sát thương theo ${s.damageMultiplier * 100}% công lực`);
+        if (s.baseHealing) parts.push(`hồi phục ${s.baseHealing} sinh lực`);
         if (parts.length > 0) {
-            details += ` Thuộc tính: ${parts.join('; ')}.`;
+            summary += ` Các thuộc tính chiến đấu bao gồm: ${parts.join(', ')}.`;
         }
+    };
+    
+    if (skill.category === 'Linh Kĩ') {
+        addCombatDetails(skill as LinhKiSkill);
     }
-    return details;
+    
+    if (skill.otherEffects && skill.otherEffects.toLowerCase() !== 'không có hiệu ứng đặc biệt.') {
+        summary += ` Hiệu ứng đặc biệt khác: ${skill.otherEffects}.`;
+    }
+    
+    return summary;
 }
 
 export function formatLocationForEmbedding(location: Location): string {
-    return `Địa điểm: ${location.name} (ID: ${location.id}). Loại: ${location.locationType}. Khu vực an toàn: ${location.isSafeZone ? 'Có' : 'Không'}. Mô tả: ${location.description}.`;
+    let summary = `"${location.name}" (ID: ${location.id}) là một địa điểm thuộc loại "${location.locationType}".`;
+    summary += ` Đây ${location.isSafeZone ? 'là' : 'không phải là'} một khu vực an toàn.`;
+    summary += ` Mô tả chi tiết: ${location.description}.`;
+    return summary;
 }
 
 export function formatFactionForEmbedding(faction: Faction): string {
-    return `Phe phái: ${faction.name} (ID: ${faction.id}). phe: ${faction.alignment}. Uy tín với người chơi: ${faction.playerReputation}. Mô tả: ${faction.description}.`;
+    let summary = `"${faction.name}" (ID: ${faction.id}) là một phe phái có thiên hướng "${faction.alignment}".`;
+    summary += ` Danh vọng hiện tại của người chơi với phe này là ${faction.playerReputation}.`;
+    summary += ` Giới thiệu về phe phái: ${faction.description}.`;
+    return summary;
 }
 
 export function formatLoreForEmbedding(lore: Lore): string {
-    return `Tri thức thế giới: ${lore.title} (ID: ${lore.id}). Nội dung: ${lore.content}.`;
+    return `Đây là một tri thức thế giới về chủ đề "${lore.title}" (ID: ${lore.id}). Nội dung: ${lore.content}.`;
 }
 
 export function formatQuestForEmbedding(quest: Quest): string {
     const activeObjectives = quest.objectives.filter(o => !o.completed).map(o => o.text).join('; ');
     if (!activeObjectives) return ''; // Don't embed completed quests
-    return `Nhiệm vụ đang làm: ${quest.title} (ID: ${quest.id}). Mô tả: ${quest.description}. Mục tiêu còn lại: ${activeObjectives}`;
+    
+    let summary = `Nhiệm vụ hiện tại: "${quest.title}" (ID: ${quest.id}).`;
+    summary += ` Tóm tắt nhiệm vụ: ${quest.description}.`;
+    summary += ` Mục tiêu còn lại cần hoàn thành: ${activeObjectives}.`;
+    return summary;
+}
+
+export function formatEventForEmbedding(summary: string): string {
+    // Thêm một tiền tố để AI hiểu rõ đây là một sự kiện đã xảy ra
+    return `Ký ức về một sự kiện quan trọng: ${summary}`;
 }

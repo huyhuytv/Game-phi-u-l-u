@@ -23,6 +23,26 @@ export const gameTimeToTotalMinutes = (time: GameTime): number => {
 };
 
 /**
+ * Converts a total number of minutes from an epoch back to a GameTime object.
+ */
+export const totalMinutesToGameTime = (totalMinutes: number): GameTime => {
+    const year = Math.floor(totalMinutes / MINUTES_IN_YEAR);
+    let remainingMinutes = totalMinutes % MINUTES_IN_YEAR;
+
+    const month = Math.floor(remainingMinutes / MINUTES_IN_MONTH) + 1; // Convert back to 1-based
+    remainingMinutes %= MINUTES_IN_MONTH;
+
+    const day = Math.floor(remainingMinutes / MINUTES_IN_DAY) + 1; // Convert back to 1-based
+    remainingMinutes %= MINUTES_IN_DAY;
+    
+    const hour = Math.floor(remainingMinutes / MINUTES_IN_HOUR);
+    const minute = Math.floor(remainingMinutes % MINUTES_IN_HOUR);
+
+    return { year, month, day, hour, minute };
+};
+
+
+/**
  * Formats a duration in minutes into a human-readable string (e.g., "3 ngày, 5 giờ").
  */
 export const formatTimeDifference = (totalMinutes: number): string => {
